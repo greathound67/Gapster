@@ -1331,78 +1331,100 @@ async function buildLeaderboard() {
 async function renderLbTab() {
   const el = document.getElementById('lbContent');
   el.innerHTML = '<div class="lb-loading">Loading... ⏳</div>';
+  // No try/catch here — each tab function handles its own errors gracefully
+  if (activeLbTab === 0) {
+    await renderOGTab(el);
+  } else {
+    await renderMostPlayedTab(el);
+  }
+}
 
+async function fetchAllEntries(prefix) {
+  // Safely fetch all entries for a given prefix, returns [] on any error
   try {
-    if (activeLbTab === 0) {
-      await renderOGTab(el);
-    } else {
-      await renderMostPlayedTab(el);
-    }
+    const keys = await window.storage.list(prefix, true);
+    if (!keys || !keys.keys || keys.keys.length === 0) return [];
+    const entries = await Promise.all(
+      keys.keys.map(async k => {
+        try {
+          const r = await window.storage.get(k, true);
+          return r ? JSON.parse(r.value) : null;
+        } catch(e) { return null; }
+      })
+    );
+    return entries.filter(Boolean);
   } catch(e) {
-    el.innerHTML = '<div class="lb-empty">Could not load leaderboard. Try again later.</div>';
-    console.error('LB error:', e);
+    console.log('fetchAllEntries error:', e);
+    return [];
   }
 }
 
 async function renderOGTab(el) {
-  const desc = '<p class="lb-section-desc">👑 The first 50 accounts ever created on Mad Libs Mania. These are the OGs!</p>';
+  const total_spots = 50;
+  const entries = await fetchAllEntries('lb_og:');
+  const valid = entries.sort((a, b) => a.joinedAt - b.joinedAt).slice(0, total_spots);
+  const myIdx = currentUser ? valid.findIndex(e => e.email === currentUser.email) : -1;
+  const spotsLeft = total_spots - valid.length;
 
-  const keys = await window.storage.list('lb_og:', true);
-  if (!keys || !keys.keys || keys.keys.length === 0) {
-    el.innerHTML = desc + '<div class="lb-empty">No accounts yet — sign in to be first! 🎉</div>';
-    return;
+  const desc = `<p class="lb-section-desc">👑 The first 50 accounts ever created — these are the OGs!
+    ${spotsLeft > 0 ? `<strong>${spotsLeft} OG spot${spotsLeft !== 1 ? 's' : ''} still available!</strong> Sign in now to claim yours.` : 'All 50 OG spots are claimed! 🎉'}</p>`;
+
+  // Update my rank card
+  const myRankStats = document.getElementById('myRankStats');
+  if (myRankStats && currentUser) {
+    if (myIdx !== -1) {
+      myRankStats.innerHTML = `<span style="font-weight:800;font-size:1.05rem">OG Rank #${myIdx+1}</span> <span class="lb-og-badge">👑 OG</span>`;
+    } else if (spotsLeft > 0) {
+      myRankStats.innerHTML = `<span style="color:#888;font-size:.9rem;font-weight:700">You're not an OG yet — ${spotsLeft} spot${spotsLeft!==1?'s':''} left!</span>`;
+    } else {
+      myRankStats.innerHTML = `<span style="color:#aaa;font-size:.9rem;font-weight:700">OG spots are full</span>`;
+    }
   }
 
-  // Fetch all OG entries
-  const entries = await Promise.all(
-    keys.keys.slice(0, 100).map(async k => {
-      try {
-        const r = await window.storage.get(k, true);
-        return r ? JSON.parse(r.value) : null;
-      } catch(e) { return null; }
-    })
-  );
-
-  const valid = entries.filter(Boolean).sort((a, b) => a.joinedAt - b.joinedAt).slice(0, 50);
-  const myIdx = currentUser ? valid.findIndex(e => e.email === currentUser.email) : -1;
-
-  // Update my rank stats
-  if (currentUser && myIdx !== -1) {
-    const myRankStats = document.getElementById('myRankStats');
-    if (myRankStats) myRankStats.innerHTML = `<span style="font-weight:800;font-size:1.05rem">OG Rank #${myIdx+1}</span> <span class="lb-og-badge">👑 OG</span>`;
+  if (!valid.length) {
+    el.innerHTML = desc + '<div class="lb-empty">No one has signed in yet — be the first OG! 🎉</div>';
+    return;
   }
 
   el.innerHTML = desc + renderTable(valid, myIdx, (e, i) => ({
     score: `<div class="lb-score">#${i+1}<span>joined</span></div>`,
-    extra: i < valid.length ? '<span class="lb-og-badge">👑 OG</span>' : ''
+    extra: '<span class="lb-og-badge">👑 OG</span>'
   }));
 }
 
 async function renderMostPlayedTab(el) {
-  const desc = '<p class="lb-section-desc">🎭 Top 50 players by total mad libs played. Keep playing to climb the ranks!</p>';
-
-  const keys = await window.storage.list('lb_played:', true);
-  if (!keys || !keys.keys || keys.keys.length === 0) {
-    el.innerHTML = desc + '<div class="lb-empty">No plays recorded yet — be the first!</div>';
-    return;
-  }
-
-  const entries = await Promise.all(
-    keys.keys.slice(0, 500).map(async k => {
-      try {
-        const r = await window.storage.get(k, true);
-        return r ? JSON.parse(r.value) : null;
-      } catch(e) { return null; }
-    })
-  );
-
-  const valid = entries.filter(e => e && e.played > 0).sort((a, b) => b.played - a.played).slice(0, 50);
+  const entries = await fetchAllEntries('lb_played:');
+  const valid = entries.filter(e => e.played > 0).sort((a, b) => b.played - a.played).slice(0, 50);
   const myIdx = currentUser ? valid.findIndex(e => e.email === currentUser.email) : -1;
 
-  // Update my rank stats
-  if (currentUser && myIdx !== -1) {
-    const myRankStats = document.getElementById('myRankStats');
-    if (myRankStats) myRankStats.innerHTML = `<span style="font-weight:800;font-size:1.05rem">Rank #${myIdx+1} Most Played</span> <span style="color:#888;font-size:.85rem;font-weight:700"> · ${valid[myIdx].played} stories</span>`;
+  // Check if current user has plays but isn't in top 50
+  let myEntry = null;
+  if (currentUser) {
+    const ps = loadProState();
+    if (ps.played.length > 0) {
+      myEntry = { name: currentUser.name, avatar: currentUser.avatar, email: currentUser.email, played: ps.played.length };
+    }
+  }
+
+  const desc = `<p class="lb-section-desc">🎭 Top 50 players by total mad libs played. Play more stories to climb the ranks!</p>`;
+
+  // Update my rank card
+  const myRankStats = document.getElementById('myRankStats');
+  if (myRankStats && currentUser) {
+    if (myIdx !== -1) {
+      myRankStats.innerHTML = `<span style="font-weight:800;font-size:1.05rem">Rank #${myIdx+1} Most Played · ${valid[myIdx].played} stories</span>`;
+    } else if (myEntry) {
+      // Not in top 50 yet — show their count
+      const beat = valid.filter(e => e.played < myEntry.played).length;
+      myRankStats.innerHTML = `<span style="font-weight:800;font-size:1.05rem">${myEntry.played} stories played</span> <span style="color:#aaa;font-size:.82rem;font-weight:700"> · not in top 50 yet</span>`;
+    } else {
+      myRankStats.innerHTML = `<span style="color:#aaa;font-size:.9rem;font-weight:700">Play some stories to appear here!</span>`;
+    }
+  }
+
+  if (!valid.length) {
+    el.innerHTML = desc + '<div class="lb-empty">No plays recorded yet — play a story to be first! 🎭</div>';
+    return;
   }
 
   el.innerHTML = desc + renderTable(valid, myIdx, (e) => ({
