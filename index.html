@@ -956,11 +956,12 @@ async function pushProState() {
   } catch(e) { console.log('pushProState error:', e); }
 }
 
-function markPlayed(id) {
+async function markPlayed(id) {
   if (isPro()) {
+    if (!proStateCache) { console.log('proStateCache not ready'); return; }
     if (!proStateCache.played.includes(id)) {
       proStateCache.played.push(id);
-      pushProState();
+      await pushProState();
       updatePlayedLeaderboard(proStateCache.played.length);
       // Record global play
       sb.from('global_plays').insert({
@@ -1141,10 +1142,10 @@ function selectRating(n) {
 }
 async function submitRating() {
   if(!selectedRating){toast('Please select a rating first! ⭐');return;}
-  if(!proStateCache) return;
+  if(!proStateCache){ toast("Please wait, still loading your progress..."); return; }
   proStateCache.ratings[currentML.id]=selectedRating;
   currentML.themes.forEach(t=>{proStateCache.themeScores[t]=(proStateCache.themeScores[t]||0)+selectedRating;proStateCache.themeCounts[t]=(proStateCache.themeCounts[t]||0)+1;});
-  pushProState();
+  await pushProState();
   // Write to global ratings
   try {
     await sb.from('global_ratings').upsert({
