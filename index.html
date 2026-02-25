@@ -329,6 +329,10 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
   <p id="headerSub">120 hilarious stories • Fill in the blanks • Get silly!</p>
 </header>
 
+<div id="setupBar" style="display:none;background:#fff3cd;border-bottom:2px solid #ffc107;padding:10px 24px;align-items:center;justify-content:center;gap:12px;font-weight:700;font-size:.9rem;position:relative;z-index:11">
+  ⚠️ Your account setup isn't complete — choose a nickname to unlock all 120 stories!
+  <button class="btn btn-gold btn-sm" onclick="openNicknameModal()">Complete Setup →</button>
+</div>
 <div class="auth-bar">
   <div class="sign-in-prompt" id="signInPrompt">
     <span>🔓</span>
@@ -808,10 +812,10 @@ async function handleSession(session) {
   };
 
   // Load or create profile
-  const { data: profile } = await sb.from('profiles').select('*').eq('email', currentUser.email).single();
+  const { data: profile, error: profileError } = await sb.from('profiles').select('*').eq('email', currentUser.email).maybeSingle();
 
   if (!profile) {
-    // Brand new user — show nickname modal
+    // New user OR profile fetch failed — show nickname modal
     closeLoginModal();
     updateAuthUI();
     updateHome();
@@ -874,7 +878,7 @@ async function saveNickname() {
     toast('2–20 characters, letters and numbers only!'); return;
   }
   // Check uniqueness
-  const { data: existing } = await sb.from('profiles').select('email').eq('nickname', raw).single();
+  const { data: existing } = await sb.from('profiles').select('email').eq('nickname', raw).maybeSingle();
   if (existing) { toast('That nickname is taken! Try another.'); return; }
 
   // Create profile
@@ -905,7 +909,8 @@ let freeState = JSON.parse(localStorage.getItem('ml_free') || '{"played":[]}');
 let proStateCache = null;
 
 function isPro() { return !!currentUser && !!currentProfile; }
-function isUnlocked(id) { return isPro() || id < FREE_LIMIT; }
+function isSignedIn() { return !!currentUser; }  // signed in with Google
+function isUnlocked(id) { return isSignedIn() || id < FREE_LIMIT; }  // only needs Google auth
 function saveFreeState() { localStorage.setItem('ml_free', JSON.stringify(freeState)); }
 
 function getPlayedIds() {
@@ -920,7 +925,7 @@ function loadProState() {
 async function fetchProState() {
   if (!currentUser) return;
   try {
-    const { data } = await sb.from('user_progress').select('*').eq('email', currentUser.email).single();
+    const { data } = await sb.from('user_progress').select('*').eq('email', currentUser.email).maybeSingle();
     if (data) {
       proStateCache = {
         played: Array.isArray(data.played) ? data.played : [],
@@ -1042,6 +1047,9 @@ function updateAuthUI() {
     prompt.classList.remove('hidden'); chip.classList.add('hidden');
     document.getElementById('headerSub').textContent = '50 free stories • Sign in to unlock all 120!';
   }
+  // Show setup bar if signed in but no profile
+  const setupBar = document.getElementById('setupBar');
+  if (setupBar) setupBar.style.display = (currentUser && !currentProfile) ? 'flex' : 'none';
 }
 
 // ===================== HOME =====================
@@ -1123,6 +1131,12 @@ async function playFromLibrary(id) {
     if (btn) { btn.style.opacity = ''; btn.style.pointerEvents = ''; }
   }
   if (!isUnlocked(id)) { openLoginModal(); return; }
+  // If signed in but profile not set up yet, prompt to complete setup
+  if (currentUser && !currentProfile) {
+    toast('Please complete your profile setup first!');
+    openNicknameModal();
+    return;
+  }
   currentML = MAD_LIBS.find(m=>m.id===id); if (!currentML) return;
   currentAnswers = {}; selectedRating = 0;
   fillBackScreen = document.querySelector('.screen.active')?.id || 'screenHome';
