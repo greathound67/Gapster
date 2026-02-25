@@ -1046,9 +1046,10 @@ function updateAuthUI() {
 
 // ===================== HOME =====================
 function updateHome() {
-  // If user is signed in but proStateCache not loaded yet, show loading state briefly
-  if (currentUser && !proStateCache) {
+  // If user is signed in but not fully loaded, show loading and retry
+  if (currentUser && (!currentProfile || !proStateCache)) {
     document.getElementById('homeBtns').innerHTML = '<p style="color:#aaa;font-size:.9rem;font-weight:700">Loading your account... ⏳</p>';
+    waitForReady().then(() => updateHome());
     return;
   }
   const played = getPlayedIds();
@@ -1094,11 +1095,9 @@ function updateHome() {
 }
 
 // ===================== GAME =====================
-function startGame(theme, backScreen) {
-  if (currentUser && !proStateCache) {
-    toast('Loading your progress... please try again in a moment!');
-    fetchProState().then(() => startGame(theme, backScreen));
-    return;
+async function startGame(theme, backScreen) {
+  if (currentUser && (!currentProfile || !proStateCache)) {
+    await waitForReady();
   }
   fillBackScreen = backScreen || 'screenHome';
   let pool = isPro() ? MAD_LIBS : MAD_LIBS.slice(0, FREE_LIMIT);
@@ -1115,18 +1114,33 @@ function startGame(theme, backScreen) {
   buildFillScreen(); showScreen('screenFill');
 }
 
-function playFromLibrary(id) {
-  // If pro state not loaded yet, wait briefly and retry
-  if (currentUser && !proStateCache) {
-    toast('Loading your progress... please try again in a moment!');
-    fetchProState().then(() => playFromLibrary(id));
-    return;
+async function playFromLibrary(id) {
+  // If signed in but profile/state not loaded yet, wait for it
+  if (currentUser && (!currentProfile || !proStateCache)) {
+    const btn = event?.target?.closest('.pop-card,.lib-card,.rec-card');
+    if (btn) { btn.style.opacity = '0.5'; btn.style.pointerEvents = 'none'; }
+    await waitForReady();
+    if (btn) { btn.style.opacity = ''; btn.style.pointerEvents = ''; }
   }
   if (!isUnlocked(id)) { openLoginModal(); return; }
   currentML = MAD_LIBS.find(m=>m.id===id); if (!currentML) return;
   currentAnswers = {}; selectedRating = 0;
   fillBackScreen = document.querySelector('.screen.active')?.id || 'screenHome';
   buildFillScreen(); showScreen('screenFill');
+}
+
+// Wait until auth + profile + proState are all ready
+function waitForReady() {
+  return new Promise(resolve => {
+    if (!currentUser || (currentProfile && proStateCache)) { resolve(); return; }
+    const check = setInterval(() => {
+      if (!currentUser || (currentProfile && proStateCache)) {
+        clearInterval(check); resolve();
+      }
+    }, 100);
+    // Safety timeout after 5s
+    setTimeout(() => { clearInterval(check); resolve(); }, 5000);
+  });
 }
 
 function buildFillScreen() {
