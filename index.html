@@ -454,6 +454,7 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
     <div class="section-header">
       <button class="btn btn-outline" onclick="showScreen('screenHome')">← Back</button>
       <h2>🔥 Popular</h2>
+      <button class="btn btn-outline btn-sm" onclick="renderPopular()" title="Refresh">🔄 Refresh</button>
     </div>
     <div class="pop-tabs">
       <button class="pop-tab active" id="popTab0" onclick="switchPopTab(0)">⭐ Highest Rated</button>
@@ -471,6 +472,7 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
     <div class="section-header">
       <button class="btn btn-outline" onclick="showScreen('screenHome')">← Back</button>
       <h2>🏆 Leaderboards</h2>
+      <button class="btn btn-outline btn-sm" onclick="renderLbTab()" title="Refresh">🔄 Refresh</button>
     </div>
     <div id="lbMyRank"></div>
     <div class="lb-search-row">
@@ -920,10 +922,10 @@ async function fetchProState() {
     const { data } = await sb.from('user_progress').select('*').eq('email', currentUser.email).single();
     if (data) {
       proStateCache = {
-        played: data.played || [],
-        ratings: data.ratings || {},
-        themeScores: data.theme_scores || {},
-        themeCounts: data.theme_counts || {}
+        played: Array.isArray(data.played) ? data.played : [],
+        ratings: data.ratings && typeof data.ratings === 'object' ? data.ratings : {},
+        themeScores: data.theme_scores && typeof data.theme_scores === 'object' ? data.theme_scores : {},
+        themeCounts: data.theme_counts && typeof data.theme_counts === 'object' ? data.theme_counts : {}
       };
     } else {
       // New user — check if localStorage has old data to migrate
@@ -938,8 +940,9 @@ async function fetchProState() {
       }
     }
   } catch(e) {
-    console.log('fetchProState error:', e);
-    proStateCache = { played:[], ratings:{}, themeScores:{}, themeCounts:{} };
+    console.error('fetchProState error:', e);
+    // Fallback to empty state so app still works
+    if (!proStateCache) proStateCache = { played:[], ratings:{}, themeScores:{}, themeCounts:{} };
   }
 }
 
@@ -1002,7 +1005,7 @@ function showScreen(id) {
   if (id === 'screenHistory') buildHistory();
   if (id === 'screenPrefs') buildPrefs();
   if (id === 'screenHome') updateHome();
-  if (id === 'screenLibrary') buildLibrary();
+  if (id === 'screenLibrary') { document.getElementById('libraryGrid').innerHTML='<p style="color:#aaa;padding:20px;text-align:center">Loading... ⏳</p>'; buildLibrary(); }
   if (id === 'screenRecommended') buildRecommended();
   if (id === 'screenLeaderboard') buildLeaderboard();
   if (id === 'screenPopular') buildPopular();
@@ -1018,12 +1021,19 @@ function updateAuthUI() {
     prompt.classList.add('hidden'); chip.classList.remove('hidden');
     const av = currentUser.avatar || '';
     const chipImg = document.getElementById('userAvatar');
-    if (av.length <= 4 && av.match(/\p{Emoji}/u)) {
+    // Remove any previously injected emoji spans
+    const oldSpan = chipImg.parentElement.querySelector('.emoji-av');
+    if (oldSpan) oldSpan.remove();
+    const isEmoji = av && av.length <= 4 && /\p{Emoji}/u.test(av);
+    if (isEmoji) {
       chipImg.style.display = 'none';
-      chipImg.parentElement.insertBefore(Object.assign(document.createElement('span'), {textContent: av, style: 'font-size:1.5rem;line-height:1'}), chipImg);
+      const sp = document.createElement('span');
+      sp.textContent = av; sp.className = 'emoji-av';
+      sp.style.cssText = 'font-size:1.5rem;line-height:1';
+      chipImg.parentElement.insertBefore(sp, chipImg);
     } else {
-      chipImg.style.display = '';
-      chipImg.src = av;
+      chipImg.style.display = av ? '' : 'none';
+      if (av) chipImg.src = av;
     }
     document.getElementById('userName').textContent = nickname;
     document.getElementById('headerSub').textContent = '120 hilarious stories • Ratings • Recommendations';
