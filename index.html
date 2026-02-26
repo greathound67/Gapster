@@ -1935,16 +1935,21 @@ function updateModUI() {
 }
 
 // Build mod panel
-async function buildModPanel() {
+async function buildModPanel(retries = 3) {
   if (!currentProfile?.is_mod) { showScreen('screenHome'); return; }
   const el = document.getElementById('modPanelContent');
   el.innerHTML = '<div class="lb-loading">Loading users... ⏳</div>';
   showScreen('screenMod');
   try {
-    // Sequential queries to avoid rate limiting on free tier
+    // Sequential queries with small delay between each
     const profilesRes = await sb.from('profiles').select('*').order('joined_at', {ascending: true});
+    if (profilesRes.error) throw profilesRes.error;
+    await new Promise(r => setTimeout(r, 200));
     const flagsRes = await sb.from('flags').select('*');
+    if (flagsRes.error) throw flagsRes.error;
+    await new Promise(r => setTimeout(r, 200));
     const bansRes = await sb.from('bans').select('email');
+    if (bansRes.error) throw bansRes.error;
     const profiles = profilesRes.data || [];
     const flags = flagsRes.data || [];
     const bannedEmails = new Set((bansRes.data || []).map(b => b.email));
@@ -1988,7 +1993,15 @@ async function buildModPanel() {
         </div>`;
       }).join('')}
     </div>`;
-  } catch(e) { console.error(e); el.innerHTML = '<div class="lb-empty">Could not load. Try again.</div>'; }
+  } catch(e) {
+    console.error('Mod panel error:', e);
+    if (retries > 0) {
+      el.innerHTML = '<div class="lb-loading">Retrying... ⏳</div>';
+      setTimeout(() => buildModPanel(retries - 1), 1000);
+    } else {
+      el.innerHTML = '<div class="lb-empty">Could not load. <button class="btn btn-outline btn-sm" onclick="buildModPanel(3)" style="margin-top:10px">Try Again</button></div>';
+    }
+  }
 }
 
 function openFlagConfirm(email, nickname) {
