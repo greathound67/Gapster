@@ -223,6 +223,27 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
 .lb-loading { text-align:center; padding:40px; color:#aaa; font-size:1.1rem; }
 .lb-my-rank { background:linear-gradient(135deg,#fff8e1,#fffde7); border:2px solid var(--accent3); border-radius:14px; padding:14px 20px; margin-bottom:16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
 .lb-section-desc { font-size:.88rem; color:#888; font-weight:700; margin-bottom:16px; line-height:1.5; }
+
+/* MODERATION */
+.mod-btn { background:linear-gradient(135deg,#2b2d42,#3d3f5a); color:#fff; border:2.5px solid var(--ink); border-radius:30px; padding:7px 16px; font-family:'Boogaloo',cursive; font-size:1rem; cursor:pointer; box-shadow:2px 2px 0 var(--ink); transition:all .15s; display:flex; align-items:center; gap:6px; }
+.mod-btn:hover { box-shadow:4px 4px 0 var(--ink); transform:translateY(-1px); }
+.mod-panel { background:var(--card); border:3px solid var(--ink); border-radius:20px; overflow:hidden; box-shadow:0 8px 30px var(--shadow); }
+.mod-panel-header { background:#2b2d42; color:#fff; padding:18px 24px; display:flex; align-items:center; gap:12px; }
+.mod-panel-header h2 { font-family:'Boogaloo',cursive; font-size:1.7rem; }
+.mod-user-row { display:grid; grid-template-columns:1fr auto; align-items:center; padding:14px 20px; border-bottom:1px solid #f0f0f0; gap:10px; }
+.mod-user-row:last-child { border:none; }
+.mod-user-info { display:flex; align-items:center; gap:10px; min-width:0; }
+.mod-user-name { font-weight:800; font-size:.95rem; }
+.mod-user-meta { font-size:.75rem; color:#aaa; margin-top:2px; }
+.mod-flag-badge { background:#fff3cd; color:#856404; border-radius:8px; padding:2px 8px; font-size:.72rem; font-weight:800; }
+.mod-flag-badge.danger { background:#f8d7da; color:#842029; }
+.mod-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.mod-action-btn { padding:5px 12px; border-radius:20px; font-size:.78rem; font-weight:800; cursor:pointer; border:2px solid var(--ink); background:var(--card); transition:all .15s; white-space:nowrap; }
+.mod-action-btn:hover { background:var(--ink); color:#fff; }
+.mod-action-btn.danger { border-color:#dc3545; color:#dc3545; }
+.mod-action-btn.danger:hover { background:#dc3545; color:#fff; }
+.banned-banner { background:#f8d7da; border:2px solid #f5c2c7; border-radius:14px; padding:14px 18px; margin-bottom:16px; font-weight:700; font-size:.9rem; color:#842029; display:flex; align-items:center; gap:10px; }
+.warned-modal .modal-box { border-color:#ffc107; }
 /* POPULAR */
 .pop-tabs { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
 .pop-tab { padding:8px 20px; border-radius:30px; font-family:'Boogaloo',cursive; font-size:1.05rem; cursor:pointer; border:2.5px solid var(--ink); background:var(--card); color:var(--ink); transition:all .15s; box-shadow:2px 2px 0 var(--ink); }
@@ -310,6 +331,11 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
 .nickname-hint { font-size:.82rem; color:#aaa; margin-bottom:20px; }
 .badge-pro { background:linear-gradient(135deg,#fff8e1,#fff3cd); color:#8a6500; border:1.5px solid var(--accent3); border-radius:12px; padding:2px 10px; font-size:.75rem; font-weight:800; }
 
+.badge-notif { position:fixed; bottom:28px; right:20px; background:linear-gradient(135deg,#fff8e1,#fffde7); border:3px solid var(--accent3); border-radius:20px; padding:16px 20px; z-index:201; display:flex; align-items:center; gap:12px; box-shadow:4px 4px 0 var(--ink); transform:translateX(200px); opacity:0; transition:all .5s; max-width:260px; pointer-events:none; }
+.badge-notif.show { transform:translateX(0); opacity:1; }
+.badge-notif .bn-icon { font-size:2.2rem; flex-shrink:0; }
+.badge-notif .bn-text { font-size:.85rem; font-weight:800; color:var(--ink); }
+.badge-notif .bn-sub { font-size:.75rem; color:#888; margin-top:2px; font-weight:600; }
 .toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(100px); background:var(--ink); color:#fff; padding:11px 22px; border-radius:30px; font-weight:700; font-size:.95rem; z-index:200; transition:transform .4s; pointer-events:none !important; white-space:nowrap; }
 
 @media(max-width:500px){
@@ -334,6 +360,7 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
   <button class="btn btn-gold btn-sm" onclick="openNicknameModal()">Complete Setup →</button>
 </div>
 <div class="auth-bar">
+  <button class="mod-btn hidden" id="modBtn" onclick="showScreen('screenMod')">🛡️ Mod Panel</button>
   <div class="sign-in-prompt" id="signInPrompt">
     <span>🔓</span>
     <span>Sign in to unlock all 120 stories, ratings &amp; more</span>
@@ -357,7 +384,7 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
       <div class="stats-row">
         <div class="stat-box"><div class="num" id="statPlayed">0</div><div class="label">Played</div></div>
         <div class="stat-box hidden" id="statAvgBox"><div class="num" id="statAvgRating">—</div><div class="label">Avg Rating</div></div>
-        <div class="stat-box"><div class="num" id="statRemaining">50</div><div class="label">Remaining</div></div>
+
       </div>
       <div class="fav-themes hidden" id="favThemesSection">
         <h3>⭐ Your Favorite Themes</h3>
@@ -491,6 +518,16 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
     <div id="lbContent"></div>
   </div>
 
+  <!-- MOD PANEL -->
+  <div class="screen" id="screenMod">
+    <div class="section-header">
+      <button class="btn btn-outline" onclick="showScreen('screenHome')">← Back</button>
+      <h2>🛡️ Mod Panel</h2>
+      <button class="btn btn-outline btn-sm" onclick="buildModPanel()">🔄 Refresh</button>
+    </div>
+    <div id="modPanelContent"></div>
+  </div>
+
   <!-- PROFILE -->
   <div class="screen" id="screenProfile">
     <div class="section-header">
@@ -500,6 +537,57 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
     <div id="profileContent"></div>
   </div>
 
+
+
+<!-- WARNED MODAL -->
+<div class="modal-overlay hidden" id="warnedModal">
+  <div class="modal-box warned-modal" style="border-color:#ffc107">
+    <div style="font-size:3rem;margin-bottom:8px" id="warnedIcon">⚠️</div>
+    <h2 id="warnedTitle">Account Warning</h2>
+    <p id="warnedMessage" style="margin-bottom:20px"></p>
+    <div id="warnedNicknameSection" class="hidden">
+      <p style="font-weight:800;margin-bottom:8px">Choose a new nickname:</p>
+      <input class="nickname-input" id="warnedNicknameInput" type="text" placeholder="New nickname..." maxlength="20">
+      <div class="nickname-hint">2–20 characters, letters and numbers only</div>
+    </div>
+    <button class="btn btn-primary" style="width:100%" id="warnedOkBtn" onclick="dismissWarning()">I Understand</button>
+  </div>
+</div>
+
+<!-- FLAG CONFIRM MODAL -->
+<div class="modal-overlay hidden" id="flagConfirmModal" onclick="if(event.target===this)closeFlagConfirm()">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeFlagConfirm()">✕</button>
+    <div style="font-size:2.5rem;margin-bottom:8px">🚩</div>
+    <h2>Flag User</h2>
+    <p>You are flagging: <strong id="flagTargetName"></strong></p>
+    <p style="margin-bottom:16px">Select reason:</p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+      <button class="btn btn-outline" onclick="submitFlag('username')" style="text-align:left">👤 Inappropriate Username</button>
+      <button class="btn btn-outline" onclick="submitFlag('hacking')" style="text-align:left;color:#dc3545;border-color:#dc3545">💀 Hacking (resets all stats)</button>
+    </div>
+    <button class="btn btn-outline" onclick="closeFlagConfirm()">Cancel</button>
+  </div>
+</div>
+<!-- CHANGE NICKNAME MODAL -->
+<div class="modal-overlay hidden" id="changeNicknameModal" onclick="if(event.target===this)closeChangeNickname()">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeChangeNickname()">✕</button>
+    <div style="font-size:2.5rem;margin-bottom:8px">✏️</div>
+    <h2>Change Nickname</h2>
+    <p>Choose a new nickname. This will update everywhere — leaderboard, profile, and all records.</p>
+    <input class="nickname-input" id="changeNicknameInput" type="text" placeholder="New nickname..." maxlength="20">
+    <div class="nickname-hint">2–20 characters, letters and numbers only</div>
+    <div id="changeNicknameConfirm" class="hidden" style="background:#fff3cd;border:2px solid #ffc107;border-radius:12px;padding:14px;margin-bottom:16px;font-size:.9rem;font-weight:700">
+      ⚠️ Are you sure? Your nickname will change everywhere and your old name won't be reserved.
+      <div style="display:flex;gap:10px;margin-top:12px;justify-content:center">
+        <button class="btn btn-primary btn-sm" onclick="confirmChangeNickname()">Yes, Change It</button>
+        <button class="btn btn-outline btn-sm" onclick="closeChangeNickname()">Cancel</button>
+      </div>
+    </div>
+    <button class="btn btn-secondary" style="width:100%" id="changeNicknameBtn" onclick="previewChangeNickname()">Preview Change →</button>
+  </div>
+</div>
 
 <!-- AVATAR PICKER MODAL -->
 <div class="modal-overlay hidden" id="avatarPickerModal" onclick="avatarPickerBgClick(event)">
@@ -515,6 +603,7 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
 </div><!-- end #main -->
 
 <div class="toast" id="toast"></div>
+<div class="badge-notif" id="badgeNotif"><div class="bn-icon" id="badgeNotifIcon">🏅</div><div><div class="bn-text" id="badgeNotifName">Badge Unlocked!</div><div class="bn-sub" id="badgeNotifDesc"></div></div></div>
 
 <!-- LOGIN MODAL -->
 <div class="modal-overlay hidden" id="loginModal" onclick="modalBgClick(event)">
@@ -765,19 +854,59 @@ const FREE_LIMIT = 50;
 const TOTAL = 120;
 
 // ===================== BADGES =====================
-const ALL_BADGES = [
+const NORMAL_BADGES = [
   { id:'welcome',   icon:'👋', name:'Welcome!',      desc:'Signed in for the first time',   check: (p) => true },
-  { id:'og',        icon:'👑', name:'OG',             desc:'One of the first 50 accounts',   check: (p) => p.is_og },
-  { id:'played10',  icon:'🎭', name:'Getting Started',desc:'Played 10 mad libs',             check: (p) => p.played >= 10 },
-  { id:'played25',  icon:'🌟', name:'On a Roll',      desc:'Played 25 mad libs',             check: (p) => p.played >= 25 },
-  { id:'played50',  icon:'🔥', name:'Halfway There',  desc:'Played 50 mad libs',             check: (p) => p.played >= 50 },
-  { id:'played100', icon:'💯', name:'Centurion',      desc:'Played 100 mad libs',            check: (p) => p.played >= 100 },
-  { id:'played200', icon:'🚀', name:'Rocket',         desc:'Played 200 mad libs',            check: (p) => p.played >= 200 },
-  { id:'played300', icon:'⚡', name:'Lightning',      desc:'Played 300 mad libs',            check: (p) => p.played >= 300 },
-  { id:'played500', icon:'🏅', name:'Elite',          desc:'Played 500 mad libs',            check: (p) => p.played >= 500 },
-  { id:'played1000',icon:'💎', name:'Diamond',        desc:'Played 1000 mad libs',           check: (p) => p.played >= 1000 },
-  { id:'all120',    icon:'🏆', name:'Completionist',  desc:'Played all 120 mad libs',        check: (p) => p.played >= 120 },
+  { id:'played10',  icon:'🎭', name:'Getting Started',desc:'Played 10 mad libs',            check: (p) => p.played >= 10 },
+  { id:'played25',  icon:'🌟', name:'On a Roll',      desc:'Played 25 mad libs',            check: (p) => p.played >= 25 },
+  { id:'played50',  icon:'🔥', name:'Halfway There',  desc:'Played 50 mad libs',            check: (p) => p.played >= 50 },
+  { id:'played100', icon:'💯', name:'Centurion',      desc:'Played 100 mad libs',           check: (p) => p.played >= 100 },
+  { id:'played200', icon:'🚀', name:'Rocket',         desc:'Played 200 mad libs',           check: (p) => p.played >= 200 },
+  { id:'played300', icon:'⚡', name:'Lightning',      desc:'Played 300 mad libs',           check: (p) => p.played >= 300 },
+  { id:'played500', icon:'🏅', name:'Elite',          desc:'Played 500 mad libs',           check: (p) => p.played >= 500 },
+  { id:'played1000',icon:'💎', name:'Diamond',        desc:'Played 1000 mad libs',          check: (p) => p.played >= 1000 },
+  { id:'all120',    icon:'🏆', name:'Completionist',  desc:'Played all 120 unique stories', check: (p) => p.uniquePlayed >= 120 },
 ];
+const SPECIAL_BADGES = [
+  { id:'og',  icon:'👑', name:'OG',        desc:'One of the first 50 accounts',  check: (p) => p.is_og },
+  { id:'mod', icon:'🛡️', name:'Moderator', desc:'Appointed Mad Libs Mania mod',  check: (p) => p.is_mod },
+];
+const ALL_BADGES = [...NORMAL_BADGES, ...SPECIAL_BADGES];
+
+let _prevEarnedBadgeIds = new Set();
+
+function checkAndNotifyBadges() {
+  if (!isPro() || !proStateCache) return;
+  const ps = proStateCache;
+  const { data: ogList } = { data: null }; // will check async below
+  const profileData = {
+    played: ps.totalPlays || ps.played.length,
+    uniquePlayed: ps.played.length,
+    is_og: currentProfile?.is_og || false,
+    is_mod: currentProfile?.is_mod || false
+  };
+  const nowEarned = new Set(ALL_BADGES.filter(b => b.check(profileData)).map(b => b.id));
+  // Find newly earned
+  for (const id of nowEarned) {
+    if (!_prevEarnedBadgeIds.has(id)) {
+      const badge = ALL_BADGES.find(b => b.id === id);
+      if (badge) showBadgeNotif(badge);
+    }
+  }
+  _prevEarnedBadgeIds = nowEarned;
+}
+
+function showBadgeNotif(badge) {
+  const el = document.getElementById('badgeNotif');
+  document.getElementById('badgeNotifIcon').textContent = badge.icon;
+  document.getElementById('badgeNotifName').textContent = '🏅 Badge Unlocked: ' + badge.name;
+  document.getElementById('badgeNotifDesc').textContent = badge.desc;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+function getEarnedBadges(profileData) {
+  return ALL_BADGES.filter(b => b.check(profileData));
+}
 
 function getEarnedBadges(profileData) {
   return ALL_BADGES.filter(b => b.check(profileData));
@@ -824,6 +953,8 @@ async function handleSession(session) {
     currentProfile = profile;
     closeLoginModal();
     await fetchProState();
+    // Init badge tracking baseline
+    if (proStateCache) { const ps=proStateCache; _prevEarnedBadgeIds=new Set(ALL_BADGES.filter(b=>b.check({played:ps.totalPlays||ps.played.length,uniquePlayed:ps.played.length,is_og:currentProfile?.is_og||false,is_mod:currentProfile?.is_mod||false})).map(b=>b.id)); }
     updateAuthUI();
     updateHome();
     // Sync leaderboard
@@ -881,11 +1012,23 @@ async function saveNickname() {
   const { data: existing } = await sb.from('profiles').select('email').eq('nickname', raw).maybeSingle();
   if (existing) { toast('That nickname is taken! Try another.'); return; }
 
+  // Generate next player ID
+  let nextPlayerId = 'A101';
+  try {
+    const { data: lastProfile } = await sb.from('profiles').select('player_id').order('joined_at', {ascending: false}).limit(100);
+    if (lastProfile && lastProfile.length > 0) {
+      // Find highest player_id
+      const ids = lastProfile.map(p => p.player_id).filter(Boolean);
+      if (ids.length > 0) nextPlayerId = incrementPlayerId(ids);
+    }
+  } catch(e) { console.log('player_id gen error:', e); }
+
   // Create profile
   const { data: newProfile, error } = await sb.from('profiles').insert({
     email: currentUser.email,
     nickname: raw,
-    avatar: currentUser.avatar || ''
+    avatar: currentUser.avatar || '',
+    player_id: nextPlayerId
   }).select().single();
 
   if (error) { console.error(error); toast('Error saving nickname. Try again.'); return; }
@@ -931,7 +1074,8 @@ async function fetchProState() {
         played: Array.isArray(data.played) ? data.played : [],
         ratings: data.ratings && typeof data.ratings === 'object' ? data.ratings : {},
         themeScores: data.theme_scores && typeof data.theme_scores === 'object' ? data.theme_scores : {},
-        themeCounts: data.theme_counts && typeof data.theme_counts === 'object' ? data.theme_counts : {}
+        themeCounts: data.theme_counts && typeof data.theme_counts === 'object' ? data.theme_counts : {},
+        totalPlays: data.total_plays || 0
       };
     } else {
       // New user — check if localStorage has old data to migrate
@@ -960,7 +1104,8 @@ async function pushProState() {
       played: proStateCache.played,
       ratings: proStateCache.ratings,
       theme_scores: proStateCache.themeScores,
-      theme_counts: proStateCache.themeCounts
+      theme_counts: proStateCache.themeCounts,
+      total_plays: proStateCache.totalPlays || 0
     }, { onConflict: 'email' });
   } catch(e) { console.log('pushProState error:', e); }
 }
@@ -968,17 +1113,20 @@ async function pushProState() {
 async function markPlayed(id) {
   if (isPro()) {
     if (!proStateCache) { console.log('proStateCache not ready'); return; }
-    if (!proStateCache.played.includes(id)) {
-      proStateCache.played.push(id);
-      await pushProState();
-      updatePlayedLeaderboard(proStateCache.played.length);
-      // Record global play
-      sb.from('global_plays').insert({
-        mad_lib_id: id,
-        email: currentUser.email,
-        played_at: new Date().toISOString()
-      }).then(() => {}).catch(e => console.log('Global play error:', e));
-    }
+    // Always track (allow replays) — only add to unique list if not already there
+    if (!proStateCache.played.includes(id)) proStateCache.played.push(id);
+    // Increment total play count (separate from unique)
+    proStateCache.totalPlays = (proStateCache.totalPlays || 0) + 1;
+    await pushProState();
+    updatePlayedLeaderboard(proStateCache.totalPlays);
+    // Record global play every time
+    sb.from('global_plays').insert({
+      mad_lib_id: id,
+      email: currentUser.email,
+      played_at: new Date().toISOString()
+    }).then(() => {}).catch(e => console.log('Global play error:', e));
+    // Check for new badges
+    checkAndNotifyBadges();
   } else {
     if (!freeState.played.includes(id)) { freeState.played.push(id); saveFreeState(); }
   }
@@ -1015,6 +1163,7 @@ function showScreen(id) {
   if (id === 'screenRecommended') buildRecommended();
   if (id === 'screenLeaderboard') buildLeaderboard();
   if (id === 'screenPopular') buildPopular();
+  if (id === 'screenMod') buildModPanel();
   window.scrollTo(0, 0);
 }
 
@@ -1025,21 +1174,28 @@ function updateAuthUI() {
   const nickname = currentProfile?.nickname || currentUser?.name?.split(' ')[0] || '';
   if (currentUser) {
     prompt.classList.add('hidden'); chip.classList.remove('hidden');
-    const av = currentUser.avatar || '';
     const chipImg = document.getElementById('userAvatar');
-    // Remove any previously injected emoji spans
+    // Always show profile emoji avatar (not Google photo)
     const oldSpan = chipImg.parentElement.querySelector('.emoji-av');
     if (oldSpan) oldSpan.remove();
-    const isEmoji = av && av.length <= 4 && /\p{Emoji}/u.test(av);
+    const profileAv = currentProfile?.avatar || '';
+    const isEmoji = profileAv && profileAv.length <= 4 && /\p{Emoji}/u.test(profileAv);
     if (isEmoji) {
       chipImg.style.display = 'none';
       const sp = document.createElement('span');
-      sp.textContent = av; sp.className = 'emoji-av';
+      sp.textContent = profileAv; sp.className = 'emoji-av';
       sp.style.cssText = 'font-size:1.5rem;line-height:1';
       chipImg.parentElement.insertBefore(sp, chipImg);
     } else {
-      chipImg.style.display = av ? '' : 'none';
-      if (av) chipImg.src = av;
+      // No emoji chosen yet — show default icon
+      chipImg.style.display = 'none';
+      const oldDefault = chipImg.parentElement.querySelector('.emoji-av');
+      if (!oldDefault) {
+        const sp = document.createElement('span');
+        sp.textContent = '🎭'; sp.className = 'emoji-av';
+        sp.style.cssText = 'font-size:1.5rem;line-height:1';
+        chipImg.parentElement.insertBefore(sp, chipImg);
+      }
     }
     document.getElementById('userName').textContent = nickname;
     document.getElementById('headerSub').textContent = '120 hilarious stories • Ratings • Recommendations';
@@ -1047,6 +1203,7 @@ function updateAuthUI() {
     prompt.classList.remove('hidden'); chip.classList.add('hidden');
     document.getElementById('headerSub').textContent = '50 free stories • Sign in to unlock all 120!';
   }
+  updateModUI();
   // Show setup bar if signed in but no profile
   const setupBar = document.getElementById('setupBar');
   if (setupBar) setupBar.style.display = (currentUser && !currentProfile) ? 'flex' : 'none';
@@ -1061,10 +1218,8 @@ function updateHome() {
     return;
   }
   const played = getPlayedIds();
-  document.getElementById('statPlayed').textContent = played.length;
+  document.getElementById('statPlayed').textContent = isPro() ? (proStateCache?.totalPlays || played.length) : played.length;
   const pro = isPro();
-  const pool = pro ? MAD_LIBS : MAD_LIBS.slice(0, FREE_LIMIT);
-  document.getElementById('statRemaining').textContent = pool.filter(m => !played.includes(m.id)).length;
 
   const avgBox = document.getElementById('statAvgBox');
   if (pro) {
@@ -1104,7 +1259,7 @@ function updateHome() {
 
 // ===================== GAME =====================
 async function startGame(theme, backScreen) {
-  if (currentUser && (!currentProfile || !proStateCache)) {
+  if (currentUser && currentProfile && !proStateCache) {
     await waitForReady();
   }
   fillBackScreen = backScreen || 'screenHome';
@@ -1202,6 +1357,7 @@ async function submitRating() {
   proStateCache.ratings[currentML.id]=selectedRating;
   currentML.themes.forEach(t=>{proStateCache.themeScores[t]=(proStateCache.themeScores[t]||0)+selectedRating;proStateCache.themeCounts[t]=(proStateCache.themeCounts[t]||0)+1;});
   await pushProState();
+  checkAndNotifyBadges();
   // Write to global ratings
   try {
     await sb.from('global_ratings').upsert({
@@ -1212,7 +1368,8 @@ async function submitRating() {
     }, { onConflict: 'mad_lib_id,email' });
   } catch(e) { console.log('Global rating error:', e); }
   toast(ratingLabels[selectedRating]+' Rating saved!');
-  setTimeout(()=>showScreen('screenHome'),1400);
+  // Check for low rating pattern after submitting
+  setTimeout(() => { checkLowRatingFlag(); showScreen('screenHome'); }, 1400);
 }
 
 // ===================== HISTORY =====================
@@ -1420,7 +1577,7 @@ function renderTable(entries,myIdx,getScore){
       return `<div class="lb-row${isMe?' is-me':''}" onclick="viewProfileByEmail('${escHtml(e.email)}')">
         <div class="lb-rank ${rankClass(i)}">${rankEmoji(i)}</div>
         <div class="lb-user">
-          <div class="lb-avatar">${e.avatar?`<img src="${escHtml(e.avatar)}" alt="" onerror="this.parentElement.textContent='👤'">`: '👤'}</div>
+          <div class="lb-avatar">${e.avatar && e.avatar.length<=4 ? e.avatar : '🎭'}</div>
           <span class="lb-name">${escHtml(e.name||'Anonymous')}</span>
           ${isMe?'<span class="lb-you-tag">YOU</span>':''}${extra}
         </div>${score}</div>`;
@@ -1448,15 +1605,15 @@ async function showMyProfile(){
 
 async function viewProfileData(profile, backScreen){
   // Get played count from leaderboard_played
-  const {data:playedData}=await sb.from('leaderboard_played').select('played').eq('email',profile.email).single();
-  const {data:ogData}=await sb.from('leaderboard_og').select('joined_at').eq('email',profile.email).single();
+  const {data:playedData}=await sb.from('leaderboard_played').select('played').eq('email',profile.email).maybeSingle();
+  const {data:ogData}=await sb.from('leaderboard_og').select('joined_at').eq('email',profile.email).maybeSingle();
 
   // Check if OG (in top 50)
   const {data:ogList}=await sb.from('leaderboard_og').select('email').order('joined_at',{ascending:true}).limit(50);
   const isOg=ogList?ogList.some(e=>e.email===profile.email):false;
 
-  const played=playedData?.played||0;
-  const profileForBadges={played, is_og:isOg};
+  const played=playedData?.played||0;  // this is total plays from leaderboard
+  const profileForBadges={played, uniquePlayed: proStateCache?.played?.length || played, is_og:isOg, is_mod:profile.is_mod||false};
   const earnedBadges=getEarnedBadges(profileForBadges);
   const earnedIds=new Set(earnedBadges.map(b=>b.id));
 
@@ -1480,7 +1637,7 @@ async function viewProfileData(profile, backScreen){
           ${profile.avatar || '🎭'}
         </div>`}
         <div class="profile-info">
-          <h2>${escHtml(profile.nickname||'Anonymous')}</h2>
+          <h2 id="profileNicknameDisplay" ${isOwn ? `onclick="openChangeNickname()" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:4px" title="Click to change nickname"` : ''}>${escHtml(profile.nickname||'Anonymous')} ${isOwn ? '<span style="font-size:1rem;opacity:.5">✏️</span>' : ''}</h2>
           <div class="pid">Player ID: ${escHtml(profile.player_id||'—')}</div>
           <div class="joined">Joined ${joined}</div>
           ${isOg?'<div style="margin-top:6px"><span class="lb-og-badge" style="font-size:.8rem;padding:3px 10px">👑 OG Member</span></div>':''}
@@ -1497,7 +1654,16 @@ async function viewProfileData(profile, backScreen){
         <div class="badges-section">
           <h3>🏅 Badges</h3>
           <div class="badges-grid">
-            ${ALL_BADGES.map(b=>`
+            ${NORMAL_BADGES.map(b=>`
+              <div class="badge ${earnedIds.has(b.id)?'earned':'locked-badge'}" title="${escHtml(b.desc)}">
+                <div class="badge-icon">${b.icon}</div>
+                <div class="badge-name">${escHtml(b.name)}</div>
+                <div class="badge-desc">${escHtml(b.desc)}</div>
+              </div>`).join('')}
+          </div>
+          <h3 style="margin-top:22px">⭐ Special</h3>
+          <div class="badges-grid">
+            ${SPECIAL_BADGES.map(b=>`
               <div class="badge ${earnedIds.has(b.id)?'earned':'locked-badge'}" title="${escHtml(b.desc)}">
                 <div class="badge-icon">${b.icon}</div>
                 <div class="badge-name">${escHtml(b.name)}</div>
@@ -1522,7 +1688,7 @@ async function viewProfileData(profile, backScreen){
       </div>
     </div>`;
 
-  document.getElementById('profileBackBtn').onclick=()=>showScreen(backScreen);
+  document.getElementById('profileBackBtn').onclick=()=>showScreen(backScreen); document.getElementById('profileBackBtn').dataset.back=backScreen;
   showScreen('screenProfile');
 }
 
@@ -1622,6 +1788,79 @@ async function renderPopular() {
   }
 }
 
+
+
+// ===================== PLAYER ID SYSTEM =====================
+// Format: A101-A999, B101-B999, ..., Z101-Z999, AA101-AA999, AB101...
+function incrementPlayerId(existingIds) {
+  // Parse all existing IDs and find the max
+  let maxPrefix = 'A', maxNum = 100;
+  for (const id of existingIds) {
+    if (!id) continue;
+    const m = id.match(/^([A-Z]+)(\d+)$/);
+    if (!m) continue;
+    const prefix = m[1], num = parseInt(m[2]);
+    if (comparePrefix(prefix, maxPrefix) > 0 || (comparePrefix(prefix, maxPrefix) === 0 && num > maxNum)) {
+      maxPrefix = prefix; maxNum = num;
+    }
+  }
+  // Increment
+  if (maxNum < 999) return maxPrefix + (maxNum + 1);
+  return nextPrefix(maxPrefix) + '101';
+}
+
+function comparePrefix(a, b) {
+  if (a.length !== b.length) return a.length - b.length;
+  return a > b ? 1 : a < b ? -1 : 0;
+}
+
+function nextPrefix(prefix) {
+  // Increment like: A->B, Z->AA, AA->AB, AZ->BA, ZZ->AAA
+  const chars = prefix.split('');
+  let i = chars.length - 1;
+  while (i >= 0) {
+    if (chars[i] < 'Z') { chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1); return chars.join(''); }
+    chars[i] = 'A'; i--;
+  }
+  return 'A' + chars.join('');
+}
+
+// ===================== CHANGE NICKNAME =====================
+function openChangeNickname() {
+  document.getElementById('changeNicknameInput').value = currentProfile?.nickname || '';
+  document.getElementById('changeNicknameConfirm').classList.add('hidden');
+  document.getElementById('changeNicknameBtn').classList.remove('hidden');
+  document.getElementById('changeNicknameModal').classList.remove('hidden');
+}
+function closeChangeNickname() {
+  document.getElementById('changeNicknameModal').classList.add('hidden');
+}
+async function previewChangeNickname() {
+  const raw = document.getElementById('changeNicknameInput').value.trim();
+  if (!/^[a-zA-Z0-9]{2,20}$/.test(raw)) { toast('2–20 characters, letters and numbers only!'); return; }
+  if (raw === currentProfile.nickname) { toast('That is already your nickname!'); return; }
+  // Check uniqueness
+  const { data: existing } = await sb.from('profiles').select('email').eq('nickname', raw).maybeSingle();
+  if (existing && existing.email !== currentUser.email) { toast('That nickname is taken! Try another.'); return; }
+  document.getElementById('changeNicknameConfirm').classList.remove('hidden');
+  document.getElementById('changeNicknameBtn').classList.add('hidden');
+}
+async function confirmChangeNickname() {
+  const raw = document.getElementById('changeNicknameInput').value.trim();
+  if (!raw || !currentUser) return;
+  try {
+    await sb.from('profiles').update({ nickname: raw }).eq('email', currentUser.email);
+    await sb.from('leaderboard_og').update({ name: raw }).eq('email', currentUser.email);
+    await sb.from('leaderboard_played').update({ name: raw }).eq('email', currentUser.email);
+    currentProfile.nickname = raw;
+    updateAuthUI();
+    closeChangeNickname();
+    // Re-render profile
+    viewProfileData(currentProfile, document.getElementById('profileBackBtn').dataset.back || 'screenHome');
+    toast('✅ Nickname changed to ' + raw + '!');
+  } catch(e) { console.error(e); toast('Could not change nickname. Try again.'); }
+}
+
 // ===================== AVATAR PICKER =====================
 const AVATARS = [
   '🎭','🐱','🐶','🦊','🐸','🐼','🐨','🐯','🦁','🐮',
@@ -1682,6 +1921,237 @@ async function saveAvatarChoice() {
     console.error('Avatar save error:', e);
     toast('Could not save. Please try again.');
   }
+}
+
+
+// ===================== MODERATION =====================
+let flagTargetEmail = null;
+let flagTargetNickname = null;
+
+// Show mod button if user is a mod
+function updateModUI() {
+  const btn = document.getElementById('modBtn');
+  if (btn) btn.classList.toggle('hidden', !currentProfile?.is_mod);
+}
+
+// Build mod panel
+async function buildModPanel() {
+  if (!currentProfile?.is_mod) { showScreen('screenHome'); return; }
+  const el = document.getElementById('modPanelContent');
+  el.innerHTML = '<div class="lb-loading">Loading users... ⏳</div>';
+  showScreen('screenMod');
+  try {
+    const [profilesRes, flagsRes, bansRes] = await Promise.all([
+      sb.from('profiles').select('*').order('joined_at', {ascending: true}),
+      sb.from('flags').select('*'),
+      sb.from('bans').select('email')
+    ]);
+    const profiles = profilesRes.data || [];
+    const flags = flagsRes.data || [];
+    const bannedEmails = new Set((bansRes.data || []).map(b => b.email));
+
+    // Count flags per user
+    const flagCounts = {};
+    const flagReasons = {};
+    flags.forEach(f => {
+      flagCounts[f.flagged_email] = (flagCounts[f.flagged_email] || 0) + 1;
+      if (!flagReasons[f.flagged_email]) flagReasons[f.flagged_email] = [];
+      flagReasons[f.flagged_email].push(f.reason);
+    });
+
+    if (!profiles.length) { el.innerHTML = '<div class="lb-empty">No users yet.</div>'; return; }
+
+    el.innerHTML = `<div class="mod-panel">
+      <div class="mod-panel-header"><h2>🛡️ ${profiles.length} Users</h2></div>
+      ${profiles.map(p => {
+        const fc = flagCounts[p.email] || 0;
+        const isBanned = bannedEmails.has(p.email);
+        const isMe = p.email === currentUser.email;
+        const reasons = [...new Set(flagReasons[p.email] || [])];
+        return `<div class="mod-user-row">
+          <div class="mod-user-info">
+            <div style="font-size:1.5rem">${p.avatar || '🎭'}</div>
+            <div>
+              <div class="mod-user-name">${escHtml(p.nickname || 'No nickname')} 
+                ${p.is_mod ? '<span style="color:#9b5de5;font-size:.72rem">🛡️ MOD</span>' : ''}
+                ${isBanned ? '<span style="color:#dc3545;font-size:.72rem">🚫 BANNED</span>' : ''}
+              </div>
+              <div class="mod-user-meta">ID: ${p.player_id || '—'} • Joined: ${p.joined_at ? new Date(p.joined_at).toLocaleDateString() : '?'}
+                ${reasons.length ? ' • Flags: ' + reasons.join(', ') : ''}
+              </div>
+            </div>
+            ${fc > 0 ? `<span class="mod-flag-badge ${fc >= 3 ? 'danger' : ''}">🚩 ${fc} flag${fc!==1?'s':''}</span>` : ''}
+          </div>
+          <div class="mod-actions">
+            ${!isMe && !isBanned && !p.is_mod ? `<button class="mod-action-btn" onclick="openFlagConfirm('${escHtml(p.email)}','${escHtml(p.nickname||'user')}')">🚩 Flag</button>` : ''}
+            ${!isMe && isBanned ? '<span style="font-size:.8rem;color:#dc3545;font-weight:800">BANNED</span>' : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  } catch(e) { console.error(e); el.innerHTML = '<div class="lb-empty">Could not load. Try again.</div>'; }
+}
+
+function openFlagConfirm(email, nickname) {
+  flagTargetEmail = email;
+  flagTargetNickname = nickname;
+  document.getElementById('flagTargetName').textContent = nickname;
+  document.getElementById('flagConfirmModal').classList.remove('hidden');
+}
+function closeFlagConfirm() {
+  document.getElementById('flagConfirmModal').classList.add('hidden');
+  flagTargetEmail = null;
+}
+
+async function submitFlag(reason) {
+  if (!flagTargetEmail || !currentProfile?.is_mod) return;
+  closeFlagConfirm();
+  try {
+    // Insert flag
+    await sb.from('flags').insert({
+      flagged_email: flagTargetEmail,
+      flagged_by: currentUser.email,
+      reason,
+      note: reason
+    });
+
+    // Count total flags for this user
+    const { data: allFlags } = await sb.from('flags').select('id').eq('flagged_email', flagTargetEmail);
+    const totalFlags = allFlags?.length || 0;
+
+    if (reason === 'hacking') {
+      // Reset all stats
+      await sb.from('user_progress').update({
+        played: [], ratings: {}, theme_scores: {}, theme_counts: {}, total_plays: 0
+      }).eq('email', flagTargetEmail);
+      await sb.from('leaderboard_played').update({ played: 0 }).eq('email', flagTargetEmail);
+      // Warn user
+      await sb.from('profiles').update({
+        warned_reason: 'hacking',
+        warned_at: new Date().toISOString()
+      }).eq('email', flagTargetEmail);
+      toast('🔨 Stats reset. User will be warned on next login.');
+    } else if (reason === 'username') {
+      // Force nickname change on next login
+      await sb.from('profiles').update({
+        warned_reason: 'username',
+        warned_at: new Date().toISOString()
+      }).eq('email', flagTargetEmail);
+      toast('🚩 User will be prompted to change nickname on next login.');
+    }
+
+    // Auto-ban if 3+ flags
+    if (totalFlags >= 3) {
+      await sb.from('bans').upsert({ email: flagTargetEmail, reason: 'Reached 3 flags' }, { onConflict: 'email' });
+      toast('🚫 User has been auto-banned (3 flags reached).');
+    }
+
+    // Refresh panel
+    buildModPanel();
+  } catch(e) { console.error(e); toast('Flag failed. Try again.'); }
+}
+
+// Check if user is banned on login
+async function checkBanAndWarnings() {
+  if (!currentUser || !currentProfile) return;
+  // Check ban
+  const { data: ban } = await sb.from('bans').select('*').eq('email', currentUser.email).maybeSingle();
+  if (ban) {
+    // Show permanent ban screen
+    document.getElementById('main').innerHTML = `<div style="text-align:center;padding:60px 20px;max-width:500px;margin:0 auto">
+      <div style="font-size:5rem;margin-bottom:16px">🚫</div>
+      <h2 style="font-family:'Boogaloo',cursive;font-size:2.5rem;color:var(--primary);margin-bottom:12px">Account Banned</h2>
+      <p style="color:#666;line-height:1.6">Your account has been permanently banned from Mad Libs Mania due to repeated violations of community guidelines.</p>
+      <p style="margin-top:16px;color:#aaa;font-size:.85rem">If you believe this is a mistake, contact the site owner.</p>
+    </div>`;
+    return false;
+  }
+  // Check warnings
+  const warned = currentProfile.warned_reason;
+  const warnedAt = currentProfile.warned_at;
+  if (warned && warnedAt) {
+    showWarning(warned);
+    return true;
+  }
+  // Auto-flag low ratings
+  checkLowRatingFlag();
+  return true;
+}
+
+async function checkLowRatingFlag() {
+  if (!proStateCache) return;
+  const ratings = Object.values(proStateCache.ratings || {});
+  if (ratings.length >= 10) {
+    const lowRatings = ratings.filter(r => r <= 2).length;
+    if (lowRatings / ratings.length >= 1/3) {
+      // Check if already warned
+      const { data: existingFlag } = await sb.from('flags').select('id')
+        .eq('flagged_email', currentUser.email).eq('reason', 'low_rating').maybeSingle();
+      if (!existingFlag) {
+        await sb.from('flags').insert({
+          flagged_email: currentUser.email,
+          flagged_by: 'system',
+          reason: 'low_rating',
+          note: 'Auto-flagged: >1/3 of ratings are 2 stars or under'
+        });
+        await sb.from('profiles').update({
+          warned_reason: 'low_rating',
+          warned_at: new Date().toISOString()
+        }).eq('email', currentUser.email);
+        showWarning('low_rating');
+      }
+    }
+  }
+}
+
+function showWarning(reason) {
+  const modal = document.getElementById('warnedModal');
+  const icon = document.getElementById('warnedIcon');
+  const title = document.getElementById('warnedTitle');
+  const msg = document.getElementById('warnedMessage');
+  const nickSection = document.getElementById('warnedNicknameSection');
+  const okBtn = document.getElementById('warnedOkBtn');
+
+  if (reason === 'username') {
+    icon.textContent = '👤';
+    title.textContent = 'Inappropriate Nickname';
+    msg.textContent = 'A moderator has flagged your nickname as inappropriate. Nicknames should be friendly and respectful. Please choose a new nickname to continue.';
+    nickSection.classList.remove('hidden');
+    okBtn.textContent = 'Save New Nickname';
+  } else if (reason === 'hacking') {
+    icon.textContent = '⚠️';
+    title.textContent = 'Account Violation';
+    msg.textContent = 'Your account was flagged for attempting to manipulate the game. As a result, all your stats have been reset. Please play fair — this is a fun community game for everyone!';
+    nickSection.classList.add('hidden');
+    okBtn.textContent = 'I Understand';
+  } else if (reason === 'low_rating') {
+    icon.textContent = '⭐';
+    title.textContent = 'Rating Reminder';
+    msg.textContent = 'We noticed a large portion of your ratings are very low. Please rate honestly based on how funny you found each story — ratings help the whole community find great content!';
+    nickSection.classList.add('hidden');
+    okBtn.textContent = 'I Understand';
+  }
+  modal.classList.remove('hidden');
+}
+
+async function dismissWarning() {
+  const reason = currentProfile?.warned_reason;
+  if (reason === 'username') {
+    const raw = document.getElementById('warnedNicknameInput').value.trim();
+    if (!/^[a-zA-Z0-9]{2,20}$/.test(raw)) { toast('2–20 characters, letters and numbers only!'); return; }
+    const { data: existing } = await sb.from('profiles').select('email').eq('nickname', raw).maybeSingle();
+    if (existing && existing.email !== currentUser.email) { toast('That nickname is taken!'); return; }
+    await sb.from('profiles').update({ nickname: raw, warned_reason: null, warned_at: null }).eq('email', currentUser.email);
+    await sb.from('leaderboard_og').update({ name: raw }).eq('email', currentUser.email);
+    await sb.from('leaderboard_played').update({ name: raw }).eq('email', currentUser.email);
+    currentProfile.nickname = raw;
+    currentProfile.warned_reason = null;
+  } else {
+    await sb.from('profiles').update({ warned_reason: null, warned_at: null }).eq('email', currentUser.email);
+    if (currentProfile) { currentProfile.warned_reason = null; currentProfile.warned_at = null; }
+  }
+  document.getElementById('warnedModal').classList.add('hidden');
+  updateAuthUI();
 }
 
 // ===================== CONFETTI =====================
