@@ -917,49 +917,79 @@ let currentUser = null;
 let currentProfile = null;
 
 async function initAuth() {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) await handleSession(session);
-
-  if (window.location.hash.includes('access_token')) {
-    const { data: { session: s } } = await sb.auth.getSession();
-    if (s) { await handleSession(s); history.replaceState(null, '', window.location.pathname); }
-  }
-
+  // Listen for auth changes
   sb.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session) await handleSession(session);
-    else if (event === 'SIGNED_OUT') { currentUser = null; currentProfile = null; updateAuthUI(); updateHome(); }
+    if (event === 'SIGNED_IN' && session && !currentUser) {
+      await handleSession(session);
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null; currentProfile = null; proStateCache = null;
+      updateAuthUI(); updateHome();
+    }
   });
+
+  // Check for existing session
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    await handleSession(session);
+    if (window.location.hash.includes('access_token')) {
+      history.replaceState(null, '', window.location.pathname);
+    }
+  }
 }
 
 async function handleSession(session) {
-  const u = session.user;
-  currentUser = {
-    id: u.id,
-    email: u.email,
-    name: u.user_metadata?.full_name || u.user_metadata?.name || u.email,
-    avatar: u.user_metadata?.avatar_url || u.user_metadata?.picture || ''
-  };
+  if (_handlingSession) return;
+  _handlingSession = true;
+  try {
+    const u = session.user;
+    currentUser = {
+      id: u.id,
+      email: u.email,
+      name: u.user_metadata?.full_name || u.user_metadata?.name || u.email,
+      avatar: u.user_metadata?.avatar_url || u.user_metadata?.picture || ''
+    };
 
-  // Load or create profile
-  const { data: profile, error: profileError } = await sb.from('profiles').select('*').eq('email', currentUser.email).maybeSingle();
-
-  if (!profile) {
-    // New user OR profile fetch failed — show nickname modal
-    closeLoginModal();
+    // Show UI immediately so page feels fast
     updateAuthUI();
     updateHome();
-    openNicknameModal();
-  } else {
-    currentProfile = profile;
     closeLoginModal();
-    await fetchProState();
-    // Init badge tracking baseline
-    if (proStateCache) { const ps=proStateCache; _prevEarnedBadgeIds=new Set(ALL_BADGES.filter(b=>b.check({played:ps.totalPlays||ps.played.length,uniquePlayed:ps.played.length,is_og:currentProfile?.is_og||false,is_mod:currentProfile?.is_mod||false})).map(b=>b.id)); }
-    updateAuthUI();
-    updateHome();
-    // Sync leaderboard
-    await syncLeaderboard();
-    toast('🎉 Welcome back, ' + (profile.nickname || currentUser.name.split(' ')[0]) + '!');
+
+    // Load profile
+    const { data: profile } = await sb.from('profiles').select('*').eq('email', currentUser.email).maybeSingle();
+
+    if (!profile) {
+      openNicknameModal();
+    } else {
+      currentProfile = profile;
+      if (profile.avatar) currentUser.avatar = profile.avatar;
+      updateAuthUI();
+      updateModUI();
+
+      // Load game state — needed before playing
+      await fetchProState();
+      updateHome();
+
+      // Init badge baseline silently
+      if (proStateCache) {
+        const ps = proStateCache;
+        _prevEarnedBadgeIds = new Set(ALL_BADGES.filter(b => b.check({
+          played: ps.totalPlays || ps.played.length,
+          uniquePlayed: ps.played.length,
+          is_og: profile.is_og || false,
+          is_mod: profile.is_mod || false
+        })).map(b => b.id));
+      }
+
+      // Background tasks — don't block UI
+      syncLeaderboard().catch(e => console.log('Sync error:', e));
+      checkBanAndWarnings().catch(e => console.log('Ban check error:', e));
+
+      toast('🎉 Welcome back, ' + (profile.nickname || currentUser.name.split(' ')[0]) + '!');
+    }
+  } catch(e) {
+    console.error('handleSession error:', e);
+  } finally {
+    _handlingSession = false;
   }
 }
 
@@ -970,14 +1000,15 @@ async function syncLeaderboard() {
     await sb.from('leaderboard_og').upsert({
       email: currentUser.email,
       name: currentProfile.nickname,
-      avatar: currentUser.avatar || '',
+      avatar: currentProfile.avatar || '',
     }, { onConflict: 'email' });
-    if (ps.played.length > 0) {
+    const totalPlays = ps.totalPlays || ps.played.length;
+    if (totalPlays > 0) {
       await sb.from('leaderboard_played').upsert({
         email: currentUser.email,
         name: currentProfile.nickname,
-        avatar: currentUser.avatar || '',
-        played: ps.played.length
+        avatar: currentProfile.avatar || '',
+        played: totalPlays
       }, { onConflict: 'email' });
     }
   } catch(e) { console.log('Sync error:', e); }
