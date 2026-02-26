@@ -2340,7 +2340,7 @@ async function buildModPanel() {
     if (!document.getElementById('screenMod')?.classList.contains('active')) return;
 
     el.innerHTML = `<div class="mod-panel">
-      <div class="mod-panel-header"><h2>🛡️ ${profiles.length} Users</h2></div>
+      <div class="mod-panel-header" style="display:flex;align-items:center;justify-content:space-between"><h2>🛡️ ${profiles.length} Users</h2><button onclick="buildModMessages()" style="background:rgba(255,255,255,.2);color:#fff;border:2px solid rgba(255,255,255,.4);border-radius:20px;padding:6px 14px;font-weight:800;font-size:.85rem;cursor:pointer">✉️ Messages</button></div>
       ${profiles.map(p => {
         const fc = flagCounts[p.email] || 0;
         const isBanned = bannedEmails.has(p.email);
