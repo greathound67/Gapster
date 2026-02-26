@@ -917,17 +917,7 @@ let currentUser = null;
 let currentProfile = null;
 
 async function initAuth() {
-  // Listen for auth changes
-  sb.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session && !currentUser) {
-      await handleSession(session);
-    } else if (event === 'SIGNED_OUT') {
-      currentUser = null; currentProfile = null; proStateCache = null;
-      updateAuthUI(); updateHome();
-    }
-  });
-
-  // Check for existing session
+  // Check existing session first
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     await handleSession(session);
@@ -935,6 +925,19 @@ async function initAuth() {
       history.replaceState(null, '', window.location.pathname);
     }
   }
+
+  // Listen for future sign-ins (e.g. after OAuth redirect on fresh tab)
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session && !currentUser) {
+      await handleSession(session);
+      if (window.location.hash.includes('access_token')) {
+        history.replaceState(null, '', window.location.pathname);
+      }
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null; currentProfile = null; proStateCache = null;
+      updateAuthUI(); updateHome();
+    }
+  });
 }
 
 async function handleSession(session) {
@@ -949,7 +952,7 @@ async function handleSession(session) {
       avatar: u.user_metadata?.avatar_url || u.user_metadata?.picture || ''
     };
 
-    // Show UI immediately so page feels fast
+    // Show UI immediately
     updateAuthUI();
     updateHome();
     closeLoginModal();
@@ -965,11 +968,11 @@ async function handleSession(session) {
       updateAuthUI();
       updateModUI();
 
-      // Load game state — needed before playing
+      // Load game state
       await fetchProState();
       updateHome();
 
-      // Init badge baseline silently
+      // Init badge baseline
       if (proStateCache) {
         const ps = proStateCache;
         _prevEarnedBadgeIds = new Set(ALL_BADGES.filter(b => b.check({
@@ -980,7 +983,7 @@ async function handleSession(session) {
         })).map(b => b.id));
       }
 
-      // Background tasks — don't block UI
+      // Background tasks
       syncLeaderboard().catch(e => console.log('Sync error:', e));
       checkBanAndWarnings().catch(e => console.log('Ban check error:', e));
 
@@ -988,6 +991,10 @@ async function handleSession(session) {
     }
   } catch(e) {
     console.error('handleSession error:', e);
+    // Reset so user can try again
+    currentUser = null;
+    updateAuthUI();
+    updateHome();
   } finally {
     _handlingSession = false;
   }
