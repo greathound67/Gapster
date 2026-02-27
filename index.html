@@ -227,7 +227,8 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
 
 
 /* CONTACT DEVELOPER */
-.contact-btn { position:fixed; top:72px; right:16px; background:var(--card); border:2px solid var(--ink); border-radius:20px; padding:6px 14px; font-size:.82rem; font-weight:800; cursor:pointer; box-shadow:2px 2px 0 var(--ink); z-index:50; transition:all .15s; color:var(--ink); }
+.contact-btn { position:fixed; top:72px; right:16px; background:var(--card); border:2px solid var(--ink); border-radius:20px; padding:6px 14px; font-size:.82rem; font-weight:800; cursor:pointer; box-shadow:2px 2px 0 var(--ink); z-index:49; transition:all .15s; color:var(--ink); }
+@media(max-width:500px){ .contact-btn { top:auto; bottom:80px; right:12px; font-size:.75rem; padding:5px 10px; } }
 .contact-btn:hover { box-shadow:3px 3px 0 var(--ink); transform:translateY(-1px); }
 .msg-list { display:flex; flex-direction:column; gap:10px; }
 .msg-item { background:var(--card); border:2px solid #e0e0e0; border-radius:14px; padding:14px; cursor:pointer; transition:all .15s; }
@@ -595,6 +596,7 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
     <p style="margin-bottom:16px">Select reason:</p>
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
       <button class="btn btn-outline" onclick="submitFlag('username')" style="text-align:left">👤 Inappropriate Username</button>
+      <button class="btn btn-outline" onclick="submitFlag('inappropriate_message')" style="text-align:left;color:#e67e22;border-color:#e67e22">💬 Inappropriate Message</button>
       <button class="btn btn-outline" onclick="submitFlag('hacking')" style="text-align:left;color:#dc3545;border-color:#dc3545">💀 Hacking (resets all stats)</button>
     </div>
     <button class="btn btn-outline" onclick="closeFlagConfirm()">Cancel</button>
@@ -1397,18 +1399,18 @@ function updateHome() {
   </div>` : '';
 
   document.getElementById('homeBtns').innerHTML = pro ? `
-    <button class="btn btn-primary" style="background:#ffd700;color:#5a4000;border-color:#e6b800" onclick="showScreen('screenDaily')">⭐ Daily Mad Lib</button>
     <button class="btn btn-primary" onclick="startGame()">🎲 Play Random!</button>
     <button class="btn btn-green" onclick="showScreen('screenRecommended')">✨ Recommended</button>
     <button class="btn btn-primary" style="background:#ff6b35" onclick="showScreen('screenPopular')">🔥 Popular</button>
     <button class="btn btn-blue" onclick="showScreen('screenLibrary')">📚 Library</button>
+    <button class="btn btn-primary" style="background:#ffd700;color:#5a4000;border-color:#e6b800" onclick="showScreen('screenDaily')">⭐ Daily Mad Lib</button>
     <button class="btn btn-secondary" onclick="showScreen('screenPrefs')">📊 Preferences</button>
     <button class="btn btn-outline" onclick="showScreen('screenLeaderboard')">🏆 Leaderboard</button>
     <button class="btn btn-outline" onclick="showScreen('screenHistory')">📜 History</button>` : `
-    <button class="btn btn-primary" style="background:#ffd700;color:#5a4000;border-color:#e6b800" onclick="showScreen('screenDaily')">⭐ Daily Mad Lib</button>
     <button class="btn btn-primary" onclick="startGame()">🎲 Play Random!</button>
     <button class="btn btn-primary" style="background:#ff6b35" onclick="showScreen('screenPopular')">🔥 Popular</button>
     <button class="btn btn-blue" onclick="showScreen('screenLibrary')">📚 Library</button>
+    <button class="btn btn-primary" style="background:#ffd700;color:#5a4000;border-color:#e6b800" onclick="showScreen('screenDaily')">⭐ Daily Mad Lib</button>
     <button class="btn btn-outline" onclick="showScreen('screenLeaderboard')">🏆 Leaderboard</button>
     <button class="btn btn-outline" onclick="showScreen('screenHistory')">📜 History</button>`;
 }
@@ -1425,10 +1427,11 @@ async function startGame(theme, backScreen) {
   if (!pool.length) {
     if (theme) { toast('No more unplayed stories in that theme!'); return; }
     if (!isPro()) { toast('🎉 All free stories played! Sign in for 70 more.'); openLoginModal(); return; }
-    const ps = loadProState(); ps.played = []; saveProState(ps);
-    toast('🎉 All 120 played! Starting over...'); startGame(null, backScreen); return;
+    proStateCache.played = []; proStateCache.totalPlays = 0; await pushProState();
+    toast('🎉 All 120 played! Starting over...'); startGame(theme, backScreen); return;
   }
   currentML = pool[Math.floor(Math.random()*pool.length)];
+  delete currentML._isDaily;
   currentAnswers = {}; selectedRating = 0;
   buildFillScreen(); showScreen('screenFill');
 }
@@ -1449,6 +1452,7 @@ async function playFromLibrary(id) {
     return;
   }
   currentML = MAD_LIBS.find(m=>m.id===id); if (!currentML) return;
+  delete currentML._isDaily; // ensure daily flag cleared
   currentAnswers = {}; selectedRating = 0;
   fillBackScreen = document.querySelector('.screen.active')?.id || 'screenHome';
   buildFillScreen(); showScreen('screenFill');
@@ -1490,11 +1494,12 @@ function revealStory() {
   document.getElementById('storyBody').innerHTML=currentML.template.split(/(\{[^}]+\})/g).map(p=>{
     const m=p.match(/^\{([^}]+)\}$/); return (m&&currentAnswers[m[1]])?`<span class="highlight">${escHtml(currentAnswers[m[1]])}</span>`:escHtml(p);
   }).join('');
-  document.getElementById('storyNextBtn').textContent=isPro()?'⭐ Rate This Story!':'→ Back Home';
-  markPlayed(currentML.id);
+  document.getElementById('storyNextBtn').textContent=currentML?._isDaily?'→ Back Home':isPro()?'⭐ Rate This Story!':'→ Back Home';
+  if(!currentML?._isDaily) markPlayed(currentML.id);
+  else markDailyPlayed();
   showScreen('screenStory');
 }
-function afterStory() { isPro()?showScreen('screenRating'):showScreen('screenHome'); }
+function afterStory() { if(currentML?._isDaily){ showScreen('screenDaily'); return; } isPro()?showScreen('screenRating'):showScreen('screenHome'); }
 
 // ===================== RATING =====================
 const ratingLabels=['','😬 Meh','😐 Okay','🙂 Not bad','😊 Pretty good','😄 Good!','🤣 Funny!','😂 Very funny!','🤩 Hilarious!','🎉 Amazing!','🏆 Masterpiece!'];
@@ -1743,13 +1748,13 @@ function renderTable(entries,myIdx,getScore){
 async function searchByPlayerId(){
   const pid=document.getElementById('pidSearch').value.trim();
   if(!pid){toast('Enter a Player ID first!');return;}
-  const {data}=await sb.from('profiles').select('*').eq('player_id',pid).single();
+  const {data}=await sb.from('profiles').select('*').eq('player_id',pid).maybeSingle();
   if(!data){toast('Player ID not found.');return;}
   viewProfileData(data,'screenLeaderboard');
 }
 
 async function viewProfileByEmail(email){
-  const {data}=await sb.from('profiles').select('*').eq('email',email).single();
+  const {data}=await sb.from('profiles').select('*').eq('email',email).maybeSingle();
   if(!data){toast('Profile not found.');return;}
   viewProfileData(data,'screenLeaderboard');
 }
@@ -1923,7 +1928,7 @@ async function renderPopular() {
     if (!sorted.length) {
       el.innerHTML = `<div class="no-recs"><div style="font-size:3rem;margin-bottom:12px">${activePopTime===1?'📅':'📊'}</div>
         <p>${activePopTime===1?'No data for the past 2 weeks yet.':'No data yet — be the first to play and rate!'}</p>
-        <div style="margin-top:18px"><button class="btn btn-primary" onclick="startGame()">▶ Play a Story</button></div></div>`;
+        <div style="margin-top:18px"><button class="btn btn-primary" onclick="showScreen('screenHome')">← Back Home</button></div></div>`;
       return;
     }
 
@@ -2122,12 +2127,30 @@ async function checkUnreadReplies() {
       .not('reply', 'is', null)
       .eq('reply_read', false)
       .maybeSingle();
-    if (data) {
-      showReplyNotif(data);
-    }
+    if (data) showReplyNotif(data);
   } catch(e) { /* silent */ }
-  // Also check for unread dot
   updateContactDot();
+  // Subscribe to live reply notifications
+  subscribeToReplies();
+}
+
+let _replySubscription = null;
+function subscribeToReplies() {
+  if (_replySubscription || !currentUser) return;
+  _replySubscription = sb
+    .channel('replies_' + currentUser.email.replace(/[^a-z0-9]/gi,'_'))
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'messages',
+      filter: 'sender_email=eq.' + currentUser.email
+    }, payload => {
+      const row = payload.new;
+      if (row.reply && !row.reply_read) {
+        showReplyNotif({ id: row.id, reply: row.reply, message: row.message, type: row.type });
+      }
+    })
+    .subscribe();
 }
 
 async function updateContactDot() {
@@ -2388,6 +2411,7 @@ function closeFlagConfirm() {
 
 async function submitFlag(reason) {
   if (!flagTargetEmail || !currentProfile?.is_mod) return;
+  if (flagTargetEmail === currentUser.email) { toast("You can't flag yourself!"); closeFlagConfirm(); return; }
   closeFlagConfirm();
   try {
     // Insert flag
@@ -2437,6 +2461,8 @@ async function submitFlag(reason) {
 // Check if user is banned on login
 async function checkBanAndWarnings() {
   if (!currentUser || !currentProfile) return;
+  // Mods are exempt from bans and warnings
+  if (currentProfile.is_mod) return;
   // Check ban
   const { data: ban } = await sb.from('bans').select('*').eq('email', currentUser.email).maybeSingle();
   if (ban) {
@@ -2463,6 +2489,7 @@ async function checkBanAndWarnings() {
 
 async function checkLowRatingFlag() {
   if (!proStateCache) return;
+  if (currentProfile?.is_mod) return; // mods exempt
   const ratings = Object.values(proStateCache.ratings || {});
   if (ratings.length >= 10) {
     const lowRatings = ratings.filter(r => r <= 2).length;
@@ -2511,6 +2538,12 @@ function showWarning(reason) {
     icon.textContent = '⭐';
     title.textContent = 'Rating Reminder';
     msg.textContent = 'We noticed a large portion of your ratings are very low. Please rate honestly based on how funny you found each story — ratings help the whole community find great content!';
+    nickSection.classList.add('hidden');
+    okBtn.textContent = 'I Understand';
+  } else if (reason === 'inappropriate_message') {
+    icon.textContent = '💬';
+    title.textContent = 'Message Warning';
+    msg.textContent = 'One of your messages to the developer was flagged as inappropriate. Please keep messages respectful and constructive. Repeated violations may result in restrictions.';
     nickSection.classList.add('hidden');
     okBtn.textContent = 'I Understand';
   }
