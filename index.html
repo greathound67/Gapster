@@ -1320,7 +1320,8 @@ async function handleSession(session) {
           played: ps.totalPlays || ps.played.length,
           uniquePlayed: ps.played.length,
           is_og: profile.is_og || false,
-          is_mod: profile.is_mod || false
+          is_mod: profile.is_mod || false,
+          bestStreak: ps.bestStreak || 0
         })).map(b => b.id));
       }
 
