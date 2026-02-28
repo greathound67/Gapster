@@ -178,6 +178,11 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
 .lib-card .lc-meta { font-size:.73rem; color:#aaa; display:flex; justify-content:space-between; align-items:center; }
 .lib-card .lc-rating { color:var(--accent); font-weight:800; }
 .played-badge { position:absolute; top:9px; right:9px; background:var(--accent2); color:#fff; border-radius:10px; font-size:.62rem; font-weight:800; padding:2px 7px; }
+..lib-search-row { display:flex; gap:0; margin-bottom:12px; }
+.lib-search-input { flex:1; padding:10px 14px; border:2px solid var(--ink); border-radius:20px 0 0 20px; font-size:.95rem; font-family:'Nunito',sans-serif; font-weight:700; background:var(--card); color:var(--ink); box-sizing:border-box; outline:none; }
+.lib-search-input:focus { border-color:var(--primary); }
+.lib-search-btn { padding:10px 18px; border:2px solid var(--ink); border-left:none; border-radius:0 20px 20px 0; background:var(--ink); color:#fff; font-size:1rem; cursor:pointer; font-weight:800; transition:all .15s; }
+.lib-search-btn:hover { background:var(--primary); border-color:var(--primary); }
 .lib-count { font-size:.88rem; color:#888; font-weight:700; margin-bottom:12px; }
 .lib-card.locked { background:var(--locked-bg); border-color:#d0d5dd; cursor:default; }
 .lib-card.locked:hover { transform:none; box-shadow:none; border-color:#d0d5dd; }
@@ -487,7 +492,8 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
     </div>
     <div id="libLockedBanner"></div>
     <div class="lib-search-row">
-      <input class="lib-search-input" id="librarySearch" type="text" placeholder="🔍 Search stories..." oninput="renderLibraryGrid()">
+      <input class="lib-search-input" id="librarySearch" type="text" placeholder="Search stories..." oninput="renderLibraryGrid()" onkeydown="if(event.key==='Enter')renderLibraryGrid()">
+      <button class="lib-search-btn" onclick="renderLibraryGrid()">🔍</button>
     </div>
     <div class="theme-filter-row" id="themeFilterRow"></div>
     <div class="lib-count" id="libCount"></div>
