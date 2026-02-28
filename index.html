@@ -514,9 +514,9 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
       <button class="pop-tab active" id="popTab0" onclick="switchPopTab(0)">⭐ Highest Rated</button>
       <button class="pop-tab" id="popTab1" onclick="switchPopTab(1)">🎭 Most Played</button>
     </div>
-    <div class="pop-time-toggle">
-      <button class="pop-time-btn active" id="popTime0" onclick="switchPopTime(0)">All Time</button>
-      <button class="pop-time-btn" id="popTime1" onclick="switchPopTime(1)">Past 2 Weeks</button>
+    <div class="pop-time-tabs">
+      <button class="pop-time-tab active" id="popTime0" onclick="switchPopTime(0)">All Time</button>
+      <button class="pop-time-tab" id="popTime1" onclick="switchPopTime(1)">Past 2 Weeks</button>
     </div>
     <div id="popContent"></div>
   </div>
@@ -2585,7 +2585,8 @@ async function confirmAutoBan(email, nickname) {
 function showDeleteConfirm(msgId) {
   const btn = document.getElementById('deleteMsgBtn');
   if (!btn) return;
-  btn.outerHTML = `<span style="display:flex;gap:6px;align-items:center">
+  const parent = btn.parentElement;
+  parent.innerHTML = `<span style="display:flex;gap:6px;align-items:center">
     <span style="font-size:.8rem;font-weight:800;color:#dc3545">Sure?</span>
     <button class="btn btn-outline btn-sm" style="color:#dc3545;border-color:#dc3545" onclick="executeDeleteMessage(${msgId})">Yes, Delete</button>
     <button class="btn btn-outline btn-sm" onclick="openMsgDetail(${msgId})">Cancel</button>
@@ -2597,7 +2598,7 @@ async function executeDeleteMessage(msgId) {
     const { error } = await sb.from('messages').delete().eq('id', msgId);
     if (error) throw error;
     toast('🗑️ Message deleted.');
-    await buildModMessages();
+    buildModMessages();
   } catch(e) { console.error(e); toast('Could not delete. Try again.'); }
 }
 
