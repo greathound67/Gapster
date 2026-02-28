@@ -1745,7 +1745,7 @@ function revealStory() {
   else markDailyPlayed();
   showScreen('screenStory');
 }
-function afterStory() { if(currentML?._isDaily){ markDailyPlayed(); showScreen('screenDaily'); return; } isPro()?showScreen('screenRating'):showScreen('screenHome'); }
+async function afterStory() { if(currentML?._isDaily){ await markDailyPlayed(); showScreen('screenDaily'); return; } isPro()?showScreen('screenRating'):showScreen('screenHome'); }
 
 
 
@@ -1970,6 +1970,7 @@ function updateStreak() {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yStr = yesterday.toLocaleDateString('en-CA');
+  let isNewDay = true;
   if (last === yStr) {
     proStateCache.currentStreak = (proStateCache.currentStreak || 0) + 1;
   } else if (!last) {
@@ -1978,9 +1979,35 @@ function updateStreak() {
     proStateCache.currentStreak = 1; // missed a day, reset
   }
   proStateCache.lastStreakDate = today;
-  if (proStateCache.currentStreak > (proStateCache.bestStreak || 0)) {
-    proStateCache.bestStreak = proStateCache.currentStreak;
+  const newBest = proStateCache.currentStreak > (proStateCache.bestStreak || 0);
+  if (newBest) proStateCache.bestStreak = proStateCache.currentStreak;
+  // Show streak notification
+  if (isNewDay) {
+    const streak = proStateCache.currentStreak;
+    const msg = newBest
+      ? `🏆 New best streak: ${streak} day${streak!==1?'s':''}!`
+      : `🔥 Streak: ${streak} day${streak!==1?'s':''} in a row!`;
+    setTimeout(() => showStreakNotif(msg), 1200);
   }
+}
+
+function showStreakNotif(msg) {
+  let el = document.getElementById('streakNotif');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'streakNotif';
+    el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(80px);background:#fff3cd;border:2px solid #ffc107;border-radius:20px;padding:10px 22px;font-weight:800;font-size:.95rem;box-shadow:3px 3px 0 #e6a800;z-index:9999;opacity:0;transition:all .4s;white-space:nowrap;color:#5a4000;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  requestAnimationFrame(() => {
+    el.style.opacity = '1';
+    el.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(-50%) translateY(80px)';
+  }, 3500);
 }
 
 function checkStreakOnLogin() {
@@ -2138,15 +2165,25 @@ async function renderMostPlayedTab(el){
     } else {
       // Weekly — count global_plays from past 7 days
       const weekAgo = new Date(Date.now()-7*24*60*60*1000).toISOString();
-      const {data:plays,error}=await sb.from('global_plays').select('email,name,avatar').gte('played_at',weekAgo);
+      const {data:plays,error}=await sb.from('global_plays').select('email').gte('played_at',weekAgo);
       if(error) throw error;
-      // Aggregate by email
+      // Aggregate counts by email
       const counts={};
-      (plays||[]).forEach(p=>{
-        if(!counts[p.email]) counts[p.email]={email:p.email,name:p.name,avatar:p.avatar,played:0};
-        counts[p.email].played++;
-      });
-      entries=Object.values(counts).sort((a,b)=>b.played-a.played).slice(0,50).filter(e=>e.played>0);
+      (plays||[]).forEach(p=>{ counts[p.email]=(counts[p.email]||0)+1; });
+      const topEmails=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).slice(0,50);
+      // Get names from leaderboard_played
+      let nameMap={};
+      if(topEmails.length){
+        const {data:lbData}=await sb.from('leaderboard_played').select('email,name,avatar,is_mod').in('email',topEmails);
+        (lbData||[]).forEach(p=>{nameMap[p.email]=p;});
+      }
+      entries=topEmails.map(email=>({
+        email,
+        name:nameMap[email]?.name||'Player',
+        avatar:nameMap[email]?.avatar||'🎭',
+        is_mod:nameMap[email]?.is_mod||false,
+        played:counts[email]
+      })).filter(e=>e.played>0);
       myIdx=currentUser?entries.findIndex(e=>e.email===currentUser.email):-1;
       if(stats&&currentUser){
         if(myIdx!==-1) stats.innerHTML=`Rank <strong>#${myIdx+1}</strong> This Week · ${entries[myIdx].played} stories`;
@@ -2211,14 +2248,12 @@ async function viewProfileData(profile, backScreen){
   const {data:ogList}=await sb.from('leaderboard_og').select('email').order('joined_at',{ascending:true}).limit(50);
   const isOg=ogList?ogList.some(e=>e.email===profile.email):false;
 
-  const played=playedData?.played||0;  // this is total plays from leaderboard
+  const played=playedData?.played||0;
+  const isOwn=currentUser&&currentUser.email===profile.email;
+  const ps=isOwn?loadProState():null;
   const profileForBadges={played, uniquePlayed: proStateCache?.played?.length || played, is_og:isOg, is_mod:profile.is_mod||false, bestStreak: isOwn?(proStateCache?.bestStreak||0):0};
   const earnedBadges=getEarnedBadges(profileForBadges);
   const earnedIds=new Set(earnedBadges.map(b=>b.id));
-
-  // Get preferences — only show if it's own profile
-  const isOwn=currentUser&&currentUser.email===profile.email;
-  const ps=isOwn?loadProState():null;
 
   const joined=profile.joined_at?new Date(profile.joined_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):'Unknown';
 
