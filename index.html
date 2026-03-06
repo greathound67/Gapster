@@ -3172,6 +3172,16 @@ async function dismissWarning() {
   }
 })();
 
+// ===================== SUPABASE KEEP-ALIVE =====================
+async function pingSupabase() {
+  try {
+    await sb.from('profiles').select('email').limit(1);
+  } catch(e) { /* silent fail */ }
+}
+// Ping immediately and then every 4 days to prevent Supabase pausing
+pingSupabase();
+setInterval(pingSupabase, 4 * 24 * 60 * 60 * 1000);
+
 // ===================== INIT =====================
 buildStarsRow();
 updateAuthUI();
