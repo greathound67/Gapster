@@ -1765,7 +1765,7 @@ function revealStory() {
   }).join('');
   document.getElementById('storyNextBtn').textContent=currentML?._isDaily?'✅ Finish':isPro()?'⭐ Rate This Story!':'→ Back Home';
   if(!currentML?._isDaily) markPlayed(currentML.id);
-  else markDailyPlayed();
+  // daily: markDailyPlayed() called in afterStory with await
   showScreen('screenStory');
 }
 async function afterStory() { if(currentML?._isDaily){ await markDailyPlayed(); showScreen('screenDaily'); return; } isPro()?showScreen('screenRating'):showScreen('screenHome'); }
@@ -2060,22 +2060,8 @@ async function markDailyPlayed() {
   const alreadyPlayed = localStorage.getItem(todayKey);
   localStorage.setItem(todayKey, '1');
   if (alreadyPlayed) return;
-  if (isPro() && proStateCache) {
-    proStateCache.totalPlays = (proStateCache.totalPlays || 0) + 1;
-    updateStreak();
-    await pushProState();
-    // Update leaderboard played count
-    const totalPlays = proStateCache.totalPlays;
-    sb.from('leaderboard_played').upsert({
-      email: currentUser.email,
-      name: currentProfile?.nickname,
-      avatar: currentProfile?.avatar || '',
-      played: totalPlays,
-      is_mod: currentProfile?.is_mod || false,
-      current_streak: proStateCache.currentStreak || 0,
-      best_streak: proStateCache.bestStreak || 0,
-    }, { onConflict: 'email' }).catch(e => console.log('Leaderboard update error:', e));
-  }
+  // Daily counts toward total played (same as regular stories)
+  if (currentML) await markPlayed(currentML.id);
 }
 
 // ===================== LEADERBOARD =====================
@@ -2901,11 +2887,7 @@ function startDailyML() {
   showScreen('screenFill');
 }
 
-// Track daily played in localStorage
-function markDailyPlayed() {
-  const todayKey = 'daily_played_' + new Date().toLocaleDateString('en-CA');
-  localStorage.setItem(todayKey, '1');
-}
+// markDailyPlayed defined above
 
 // ===================== MODERATION =====================
 let flagTargetEmail = null;
