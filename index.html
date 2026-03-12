@@ -44,6 +44,7 @@
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Nunito:wght@400;600;700;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <style>
 :root {
   --bg: #fdf6e3; --ink: #1a1a2e; --primary: #e63946; --secondary: #457b9d;
@@ -233,8 +234,8 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
 
 
 /* CONTACT DEVELOPER */
-.contact-btn { position:fixed; top:72px; right:16px; background:var(--card); border:2px solid var(--ink); border-radius:20px; padding:6px 14px; font-size:.82rem; font-weight:800; cursor:pointer; box-shadow:2px 2px 0 var(--ink); z-index:49; transition:all .15s; color:var(--ink); }
-@media(max-width:500px){ .contact-btn { top:auto; bottom:80px; right:12px; font-size:.75rem; padding:5px 10px; } }
+.contact-btn { position:fixed; top:112px; right:16px; background:var(--card); border:2px solid var(--ink); border-radius:20px; padding:6px 14px; font-size:.82rem; font-weight:800; cursor:pointer; box-shadow:2px 2px 0 var(--ink); z-index:49; transition:all .15s; color:var(--ink); }
+@media(max-width:500px){ .contact-btn { top:auto; bottom:120px; right:12px; font-size:.75rem; padding:5px 10px; } }
 .contact-btn:hover { box-shadow:3px 3px 0 var(--ink); transform:translateY(-1px); }
 .msg-list { display:flex; flex-direction:column; gap:10px; }
 .msg-item { background:var(--card); border:2px solid #e0e0e0; border-radius:14px; padding:14px; cursor:pointer; transition:all .15s; }
@@ -394,9 +395,9 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
 .auth-error{background:#f8d7da;color:#842029;border-radius:10px;padding:8px 14px;font-size:.85rem;font-weight:700;}
 
 /* ===== NOTIFICATION INBOX ===== */
-.notif-bell{position:fixed;top:72px;right:58px;background:var(--card);border:2px solid var(--ink);border-radius:20px;padding:6px 14px;font-size:.82rem;font-weight:800;cursor:pointer;box-shadow:2px 2px 0 var(--ink);z-index:49;transition:all .15s;color:var(--ink);display:none;}
+.notif-bell{position:fixed;top:72px;right:16px;background:var(--card);border:2px solid var(--ink);border-radius:20px;padding:6px 14px;font-size:.82rem;font-weight:800;cursor:pointer;box-shadow:2px 2px 0 var(--ink);z-index:49;transition:all .15s;color:var(--ink);display:none;}
 .notif-bell:hover{box-shadow:3px 3px 0 var(--ink);transform:translateY(-1px);}
-@media(max-width:500px){.notif-bell{top:auto;bottom:118px;right:12px;font-size:.75rem;padding:5px 10px;}}
+@media(max-width:500px){.notif-bell{top:auto;bottom:80px;right:12px;font-size:.75rem;padding:5px 10px;}}
 .notif-badge{display:inline-block;background:var(--primary);color:#fff;border-radius:10px;font-size:.65rem;font-weight:800;padding:1px 6px;margin-left:3px;vertical-align:middle;}
 .notif-item{background:var(--card);border:2px solid #e0e0e0;border-radius:14px;padding:14px 16px;margin-bottom:10px;transition:all .15s;}
 .notif-item.unread{border-color:var(--accent);background:#fffde7;}
@@ -1267,6 +1268,58 @@ function getTodaysDailyML() {
 const SUPABASE_URL = 'https://jmqphaoouagnmiwpuabr.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptcXBoYW9vdWFnbm1pd3B1YWJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4ODk5MTksImV4cCI6MjA4NzQ2NTkxOX0.0lSeox5X2uaycyKD77HahEmgLGEv1AEH2y7CGvGS4AQ';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ===================== ONESIGNAL =====================
+const OS_APP_ID = 'd8f5d283-ed6f-4af2-a103-2a059b2c8bed';
+const OS_API_KEY = 'os_v2_app_3d25fa7nn5fpfiidficzwlel5wxx6ckl73vefemfzq3dtlhp2o3imlq5fxhn76fqsnzjhstodkw2ivjhbay2wehal4czowueavcb4da';
+
+window.OneSignalDeferred = window.OneSignalDeferred || [];
+OneSignalDeferred.push(async function(OneSignal) {
+  await OneSignal.init({
+    appId: OS_APP_ID,
+    notifyButton: { enable: false },
+    allowLocalhostAsSecureOrigin: true,
+  });
+});
+
+async function requestPushPermission() {
+  try {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function(OneSignal) {
+      try {
+        if(currentUser) await OneSignal.login(currentUser.email);
+        setTimeout(async () => {
+          try {
+            if(!OneSignal.Notifications.permission) {
+              await OneSignal.Notifications.requestPermission();
+            }
+          } catch(e) { console.log('Push request error:', e); }
+        }, 3000);
+      } catch(e) { console.log('OneSignal login error:', e); }
+    });
+  } catch(e) { console.log('Push permission error:', e); }
+}
+
+async function sendPushToUser(email, title, body) {
+  try {
+    const res = await fetch('https://api.onesignal.com/notifications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Key ' + OS_API_KEY,
+      },
+      body: JSON.stringify({
+        app_id: OS_APP_ID,
+        filters: [{ field: 'external_id', value: email }],
+        headings: { en: title },
+        contents: { en: body },
+        web_url: 'https://greathound67.github.io/Gapster/',
+      })
+    });
+    const data = await res.json();
+    if(data.errors) console.log('Push error:', data.errors);
+  } catch(e) { console.log('sendPush error:', e); }
+}
 
 const FREE_LIMIT = 50;
 const TOTAL = 120;
