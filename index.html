@@ -1821,7 +1821,7 @@ async function saveNickname() {
   // Generate next player ID
   let nextPlayerId = 'A101';
   try {
-    const { data: lastProfile } = await sb.from('profiles').select('player_id').order('joined_at', {ascending: false}).limit(100);
+    const { data: lastProfile } = await sb.from('profiles').select('player_id').order('joined_at', {ascending: true}).limit(500);
     if (lastProfile && lastProfile.length > 0) {
       const ids = lastProfile.map(p => p.player_id).filter(Boolean);
       if (ids.length > 0) nextPlayerId = incrementPlayerId(ids);
@@ -2949,20 +2949,22 @@ async function renderPopular() {
 // ===================== PLAYER ID SYSTEM =====================
 // Format: A101-A999, B101-B999, ..., Z101-Z999, AA101-AA999, AB101...
 function incrementPlayerId(existingIds) {
-  // Parse all existing IDs and find the max
-  let maxPrefix = 'A', maxNum = 100;
+  // Build set of all used numeric IDs under prefix A
+  const usedNums = new Set();
+  let maxNum = 100;
   for (const id of existingIds) {
     if (!id) continue;
-    const m = id.match(/^([A-Z]+)(\d+)$/);
+    const m = id.match(/^A(\d+)$/);
     if (!m) continue;
-    const prefix = m[1], num = parseInt(m[2]);
-    if (comparePrefix(prefix, maxPrefix) > 0 || (comparePrefix(prefix, maxPrefix) === 0 && num > maxNum)) {
-      maxPrefix = prefix; maxNum = num;
-    }
+    const num = parseInt(m[1]);
+    usedNums.add(num);
+    if (num > maxNum) maxNum = num;
   }
-  // Increment
-  if (maxNum < 999) return maxPrefix + (maxNum + 1);
-  return nextPrefix(maxPrefix) + '101';
+  // Find lowest available number starting from 101
+  for (let n = 101; n <= maxNum + 1; n++) {
+    if (!usedNums.has(n)) return 'A' + n;
+  }
+  return 'A' + (maxNum + 1);
 }
 
 function comparePrefix(a, b) {
@@ -3473,7 +3475,7 @@ async function buildModPanel() {
           </div>
         </div>`).join('')}
       </div>` : ''}
-      ${profiles.map(p => {
+      ${profiles.filter(p => !p.email.endsWith('@gapster.bot')).map(p => {
         const fc = flagCounts[p.email] || 0;
         const isBanned = bannedEmails.has(p.email);
         const isMe = p.email === currentUser.email;
@@ -3942,9 +3944,9 @@ async function getNextBotPlayerId() {
   try {
     const {data} = await sb.from('profiles').select('player_id').order('joined_at',{ascending:false}).limit(200);
     const ids = (data||[]).map(p=>p.player_id).filter(Boolean);
-    if(!ids.length) return 'G1001';
+    if(!ids.length) return 'A101';
     return incrementPlayerId(ids);
-  } catch(e) { return 'G1001'; }
+  } catch(e) { return 'A101'; }
 }
 
 let addBotIconSelection = '🤖';
