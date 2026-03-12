@@ -632,10 +632,7 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
     <div class="section-header">
       <button class="btn btn-outline" onclick="showScreen('screenHome')">← Back</button>
       <h2>🔔 Inbox</h2>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-outline btn-sm" onclick="markAllNotifsRead()">Mark All Read</button>
-        <button class="btn btn-outline btn-sm" style="color:#dc3545;border-color:#dc3545" onclick="clearAllNotifs()">🗑️ Clear All</button>
-      </div>
+      <button class="btn btn-outline btn-sm" style="color:#dc3545;border-color:#dc3545" onclick="clearAllNotifs()">🗑️ Clear All</button>
     </div>
     <div id="inboxContent"><div class="lb-loading">Loading... ⏳</div></div>
   </div>
@@ -3292,7 +3289,7 @@ async function sendReply(msgId, senderEmail) {
     if(senderEmail) {
       await addNotification(senderEmail, 'reply',
         '📬 The developer replied to your message!',
-        'Log on and see their reply.'
+        reply
       );
     }
     toast('✅ Reply sent!');
@@ -3455,7 +3452,7 @@ async function buildModPanel() {
     const bots = botsList || [];
 
     el.innerHTML = `<div class="mod-panel">
-      <div class="mod-panel-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div class="mod-panel-header" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
         <h2>🛡️ ${profiles.filter(p=>!p.email.endsWith('@gapster.bot')).length} Users · ${bots.length} Bots</h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button onclick="openAddBotModal()" style="background:#6f42c1;color:#fff;border:2px solid rgba(255,255,255,.4);border-radius:20px;padding:6px 14px;font-weight:800;font-size:.85rem;cursor:pointer">🤖 Add Bot</button>
@@ -3904,20 +3901,29 @@ async function buildInboxScreen() {
     updateNotifBell();
     const typeLabels = {badge:'nt-badge',flag:'nt-flag',reply:'nt-reply',streak:'nt-streak',streak_loss:'nt-streak_loss',system:'nt-system',best_streak:'nt-best_streak'};
     el.innerHTML = data.map(n=>`
-      <div class="notif-item${n.read?'':' unread'}">
-        <span class="ni-type ${typeLabels[n.type]||'nt-system'}">${n.type.replace('_',' ').toUpperCase()}</span>
-        <div class="ni-title">${escHtml(n.title)}</div>
-        <div class="ni-body">${escHtml(n.body)}</div>
-        <div class="ni-time">${n.created_at?new Date(n.created_at).toLocaleString():''}</div>
+      <div class="notif-item${n.read?'':' unread'}" id="notif-${n.id}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <div style="flex:1">
+            <span class="ni-type ${typeLabels[n.type]||'nt-system'}">${n.type.replace('_',' ').toUpperCase()}</span>
+            <div class="ni-title">${escHtml(n.title)}</div>
+            <div class="ni-body">${escHtml(n.body)}</div>
+            <div class="ni-time">${n.created_at?new Date(n.created_at).toLocaleString():''}</div>
+          </div>
+          <button onclick="dismissNotif('${n.id}')" style="background:none;border:2px solid #ddd;border-radius:20px;padding:3px 10px;font-size:.75rem;font-weight:800;cursor:pointer;color:#aaa;white-space:nowrap;flex-shrink:0" title="Dismiss">✓ Done</button>
+        </div>
       </div>`).join('');
   } catch(e) { console.error(e); el.innerHTML = '<div class="lb-empty">Could not load notifications.</div>'; }
 }
 
-async function markAllNotifsRead() {
-  if(!currentUser) return;
-  try { await sb.from('notifications').update({read:true}).eq('email',currentUser.email); } catch(e) { console.log(e); }
-  updateNotifBell();
-  buildInboxScreen();
+async function dismissNotif(id) {
+  try {
+    await sb.from('notifications').delete().eq('id', id);
+    const el = document.getElementById('notif-' + id);
+    if(el) el.remove();
+    updateNotifBell();
+    const remaining = document.querySelectorAll('.notif-item');
+    if(!remaining.length) document.getElementById('inboxContent').innerHTML = '<div class="lb-empty">No notifications yet. Keep playing!</div>';
+  } catch(e) { toast('Could not dismiss.'); }
 }
 
 async function clearAllNotifs() {
