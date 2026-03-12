@@ -1565,48 +1565,48 @@ const TOTAL = 120;
 
 // ===================== BADGES =====================
 const NORMAL_BADGES = [
-  { id:'welcome',   icon:'👋', name:'Welcome!',       desc:'Signed in for the first time',     check: (p) => true },
-  { id:'played10',  icon:'🎭', name:'Getting Started', desc:'Played 10 stories',              check: (p) => p.played >= 10 },
-  { id:'played25',  icon:'🌟', name:'On a Roll',       desc:'Played 25 stories',              check: (p) => p.played >= 25 },
-  { id:'played50',  icon:'🔥', name:'Halfway There',   desc:'Played 50 stories',              check: (p) => p.played >= 50 },
-  { id:'played100', icon:'💯', name:'Centurion',       desc:'Played 100 stories',             check: (p) => p.played >= 100 },
-  { id:'played200', icon:'🚀', name:'Rocket',          desc:'Played 200 stories',             check: (p) => p.played >= 200 },
-  { id:'played300', icon:'⚡', name:'Lightning',       desc:'Played 300 stories',             check: (p) => p.played >= 300 },
-  { id:'played500', icon:'🏅', name:'Elite',           desc:'Played 500 stories',             check: (p) => p.played >= 500 },
-  { id:'all120',    icon:'🏆', name:'Completionist',   desc:'Played all 120 unique stories',   check: (p) => p.uniquePlayed >= 120 },
-  { id:'streak3',   icon:'🌱', name:'Warm Up',         desc:'3 day streak',                    check: (p) => p.bestStreak >= 3 },
-  { id:'streak7',   icon:'🔥', name:'On Fire',         desc:'7 day streak',                    check: (p) => p.bestStreak >= 7 },
-  { id:'streak25',  icon:'⚡', name:'Unstoppable',     desc:'25 day streak',                   check: (p) => p.bestStreak >= 25 },
-  { id:'streak50',  icon:'💪', name:'Dedicated',       desc:'50 day streak',                   check: (p) => p.bestStreak >= 50 },
-  { id:'streak100', icon:'🌟', name:'Century Streak',  desc:'100 day streak',                  check: (p) => p.bestStreak >= 100 },
-  { id:'streak200', icon:'🚀', name:'Legendary',       desc:'200 day streak',                  check: (p) => p.bestStreak >= 200 },
-  { id:'streak365', icon:'👑', name:'Year of Laughs',  desc:'365 day streak',                  check: (p) => p.bestStreak >= 365 },
+  { id:'welcome',   icon:'👋', name:'Welcome!',        desc:'Signed in for the first time',    check: (p) => true },
+  { id:'played10',  icon:'🎭', name:'Getting Started', desc:'Played 10 stories',               check: (p) => p.played >= 10 },
+  { id:'played25',  icon:'✨', name:'On a Roll',        desc:'Played 25 stories',               check: (p) => p.played >= 25 },
+  { id:'played50',  icon:'🔥', name:'Halfway There',   desc:'Played 50 stories',               check: (p) => p.played >= 50 },
+  { id:'played100', icon:'💎', name:'Centurion',        desc:'Played 100 stories',              check: (p) => p.played >= 100 },
+  { id:'played200', icon:'🚀', name:'Rocket',           desc:'Played 200 stories',              check: (p) => p.played >= 200 },
+  { id:'played300', icon:'⚡', name:'Lightning',        desc:'Played 300 stories',              check: (p) => p.played >= 300 },
+  { id:'played500', icon:'🏅', name:'Elite',            desc:'Played 500 stories',              check: (p) => p.played >= 500 },
+  { id:'all120',    icon:'🎯', name:'Completionist',    desc:'Played all 120 unique stories',   check: (p) => p.uniquePlayed >= 120 },
+  { id:'streak3',   icon:'🌱', name:'Warm Up',          desc:'3 day streak',                    check: (p) => p.bestStreak >= 3 },
+  { id:'streak7',   icon:'🌶️', name:'On Fire',          desc:'7 day streak',                    check: (p) => p.bestStreak >= 7 },
+  { id:'streak25',  icon:'💫', name:'Unstoppable',      desc:'25 day streak',                   check: (p) => p.bestStreak >= 25 },
+  { id:'streak50',  icon:'💪', name:'Dedicated',        desc:'50 day streak',                   check: (p) => p.bestStreak >= 50 },
+  { id:'streak100', icon:'🌠', name:'Century Streak',   desc:'100 day streak',                  check: (p) => p.bestStreak >= 100 },
+  { id:'streak200', icon:'🛸', name:'Legendary',        desc:'200 day streak',                  check: (p) => p.bestStreak >= 200 },
+  { id:'streak365', icon:'🌈', name:'Year of Laughs',   desc:'365 day streak',                  check: (p) => p.bestStreak >= 365 },
 ];
 const AGE_BADGES = [
-  { id:'age7',   icon:'🌱', name:'One Week In',    desc:'Account is 7 days old',    check: (p) => p.accountAgeDays >= 7 },
-  { id:'age28',  icon:'🌿', name:'One Month In',   desc:'Account is 28 days old',   check: (p) => p.accountAgeDays >= 28 },
-  { id:'age50',  icon:'🌳', name:'50 Days Strong', desc:'Account is 50 days old',   check: (p) => p.accountAgeDays >= 50 },
-  { id:'age100', icon:'💯', name:'100 Day Vet',    desc:'Account is 100 days old',  check: (p) => p.accountAgeDays >= 100 },
-  { id:'age250', icon:'🏛️', name:'250 Day Legend', desc:'Account is 250 days old',  check: (p) => p.accountAgeDays >= 250 },
-  { id:'age365', icon:'🎂', name:'1 Year Gapster', desc:'Account is 1 year old',    check: (p) => p.accountAgeDays >= 365 },
-  { id:'age730', icon:'🎖️', name:'2 Year Veteran', desc:'Account is 2 years old',   check: (p) => p.accountAgeDays >= 730 },
-  { id:'age1095',icon:'🏆', name:'3 Year Legend',  desc:'Account is 3 years old',   check: (p) => p.accountAgeDays >= 1095 },
-  { id:'age1825',icon:'👑', name:'5 Year Icon',    desc:'Account is 5 years old',   check: (p) => p.accountAgeDays >= 1825 },
+  { id:'age7',   icon:'🐣',  name:'One Week In',    desc:'Account is 7 days old',    check: (p) => p.accountAgeDays >= 7 },
+  { id:'age28',  icon:'🌿',  name:'One Month In',   desc:'Account is 28 days old',   check: (p) => p.accountAgeDays >= 28 },
+  { id:'age50',  icon:'🌳',  name:'50 Days Strong', desc:'Account is 50 days old',   check: (p) => p.accountAgeDays >= 50 },
+  { id:'age100', icon:'🪨',  name:'100 Day Vet',    desc:'Account is 100 days old',  check: (p) => p.accountAgeDays >= 100 },
+  { id:'age250', icon:'🏛️',  name:'250 Day Legend', desc:'Account is 250 days old',  check: (p) => p.accountAgeDays >= 250 },
+  { id:'age365', icon:'🎂',  name:'1 Year Gapster', desc:'Account is 1 year old',    check: (p) => p.accountAgeDays >= 365 },
+  { id:'age730', icon:'🎖️',  name:'2 Year Veteran', desc:'Account is 2 years old',   check: (p) => p.accountAgeDays >= 730 },
+  { id:'age1095',icon:'🗿',  name:'3 Year Legend',  desc:'Account is 3 years old',   check: (p) => p.accountAgeDays >= 1095 },
+  { id:'age1825',icon:'💠',  name:'5 Year Icon',    desc:'Account is 5 years old',   check: (p) => p.accountAgeDays >= 1825 },
 ];
 const EVENT_BADGES = [
-  { id:'ev_anniversary', icon:'🎂', name:'Birthday Player',    desc:'Played the Gapster Anniversary story',  check: (p) => p.eventPlayed?.includes('9001') },
-  { id:'ev_valentines',  icon:'💝', name:'Hopeless Romantic',  desc:"Played the Valentine's Day story",       check: (p) => p.eventPlayed?.includes('9009') },
-  { id:'ev_stpatricks',  icon:'☘️', name:'Lucky One',          desc:"Played the St. Patrick's Day story",    check: (p) => p.eventPlayed?.includes('9002') },
-  { id:'ev_easter',      icon:'🐣', name:'Egg Hunter',         desc:'Played the Easter story',               check: (p) => p.eventPlayed?.includes('9003') },
-  { id:'ev_schoolsout',  icon:'🏖️', name:'Summer Starter',     desc:"Played the School's Out story",         check: (p) => p.eventPlayed?.includes('9004') },
-  { id:'ev_july4',       icon:'🎆', name:'Patriot',            desc:'Played the 4th of July story',          check: (p) => p.eventPlayed?.includes('9005') },
-  { id:'ev_halloween',   icon:'🎃', name:'Trick or Texter',    desc:'Played the Halloween story',            check: (p) => p.eventPlayed?.includes('9006') },
-  { id:'ev_christmas',   icon:'🎄', name:'Ho Ho Ho',           desc:'Played the Christmas story',            check: (p) => p.eventPlayed?.includes('9007') },
-  { id:'ev_newyears',    icon:'🎉', name:'Party Starter',      desc:"Played the New Year's story",           check: (p) => p.eventPlayed?.includes('9008') },
+  { id:'ev_anniversary', icon:'🥳', name:'Birthday Player',   desc:'Played the Gapster Anniversary story',  check: (p) => p.eventPlayed?.includes('9001') },
+  { id:'ev_valentines',  icon:'💝', name:'Hopeless Romantic', desc:"Played the Valentine's Day story",      check: (p) => p.eventPlayed?.includes('9009') },
+  { id:'ev_stpatricks',  icon:'☘️', name:'Lucky One',         desc:"Played the St. Patrick's Day story",   check: (p) => p.eventPlayed?.includes('9002') },
+  { id:'ev_easter',      icon:'🐰', name:'Egg Hunter',        desc:'Played the Easter story',               check: (p) => p.eventPlayed?.includes('9003') },
+  { id:'ev_schoolsout',  icon:'🏖️', name:'Summer Starter',    desc:"Played the School's Out story",        check: (p) => p.eventPlayed?.includes('9004') },
+  { id:'ev_july4',       icon:'🎆', name:'Patriot',           desc:'Played the 4th of July story',          check: (p) => p.eventPlayed?.includes('9005') },
+  { id:'ev_halloween',   icon:'🎃', name:'Trick or Texter',   desc:'Played the Halloween story',            check: (p) => p.eventPlayed?.includes('9006') },
+  { id:'ev_christmas',   icon:'🎄', name:'Ho Ho Ho',          desc:'Played the Christmas story',            check: (p) => p.eventPlayed?.includes('9007') },
+  { id:'ev_newyears',    icon:'🎉', name:'Party Starter',     desc:"Played the New Year's story",          check: (p) => p.eventPlayed?.includes('9008') },
 ];
 const SPECIAL_BADGES = [
   { id:'og',  icon:'👑', name:'OG',        desc:'One of the first 50 accounts',  check: (p) => p.is_og },
-  { id:'mod', icon:'🛡️', name:'Moderator', desc:'Appointed Gapster mod',  check: (p) => p.is_mod },
+  { id:'mod', icon:'🛡️', name:'Moderator', desc:'Appointed Gapster mod',         check: (p) => p.is_mod },
 ];
 const ALL_BADGES = [...NORMAL_BADGES, ...AGE_BADGES, ...EVENT_BADGES, ...SPECIAL_BADGES];
 
@@ -2609,19 +2609,20 @@ async function renderStreakTab(el){
   try{
     const col = activeLbStreakType===0 ? 'best_streak' : 'current_streak';
     const label = activeLbStreakType===0 ? 'best streak' : 'current streak';
-    // Fetch from user_progress
     const {data,error}=await sb.from('user_progress').select('email,current_streak,best_streak,last_streak_date').order(col,{ascending:false}).limit(100);
     if(error) throw error;
-    // For current streak: only show users who played today or yesterday (active streak)
+    // Also fetch bots
+    const {data:botsData}=await sb.from('bots').select('email,current_streak,best_streak');
+    // Bots don't have last_streak_date — use today so current streak filter passes
+    const botRows=(botsData||[]).map(b=>({email:b.email,current_streak:b.current_streak||0,best_streak:b.best_streak||0,last_streak_date:new Date().toLocaleDateString('en-CA')}));
+    const allRows=[...(data||[]),...botRows];
     const today = new Date().toLocaleDateString('en-CA');
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
     const yStr = yesterday.toLocaleDateString('en-CA');
-    const filtered=(data||[]).filter(e=>{
+    const filtered=allRows.filter(e=>{
       if(activeLbStreakType===0) return e.best_streak>0;
-      // Current streak — must have played today or yesterday to count as active
       return e.current_streak>0 && (e.last_streak_date===today || e.last_streak_date===yStr);
-    }).slice(0,50);
-    // Get names/avatars from leaderboard_og or leaderboard_played
+    }).sort((a,b)=>activeLbStreakType===0?b.best_streak-a.best_streak:b.current_streak-a.current_streak).slice(0,50);
     const emails=filtered.map(e=>e.email);
     let nameMap={};
     if(emails.length){
@@ -2633,7 +2634,7 @@ async function renderStreakTab(el){
       name:nameMap[e.email]?.name||'Unknown',
       avatar:nameMap[e.email]?.avatar||'🎭',
       is_mod:nameMap[e.email]?.is_mod||false,
-      played:activeLbStreakType===0?e.best_streak:e.current_streak
+      played:activeLbStreakType===0?e.best_streak:e.current_streak,
     }));
     const myIdx=currentUser?entries.findIndex(e=>e.email===currentUser.email):-1;
     const stats=document.getElementById('myRankStats');
@@ -2696,7 +2697,7 @@ async function renderMostPlayedTab(el){
         name:nameMap[email]?.name||'Player',
         avatar:nameMap[email]?.avatar||'🎭',
         is_mod:nameMap[email]?.is_mod||false,
-        played:counts[email]
+        played:counts[email],
       })).filter(e=>e.played>0);
       myIdx=currentUser?entries.findIndex(e=>e.email===currentUser.email):-1;
       if(stats&&currentUser){
@@ -2732,6 +2733,38 @@ function renderTable(entries,myIdx,getScore){
           ${extra}
         </div>${score}</div>`;
     }).join('')}</div>`;
+}
+
+async function fetchBadgesForEmails(emails) {
+  // Returns map of email -> badges array
+  if(!emails.length) return {};
+  const badgeMap = {};
+  try {
+    const {data:pdata} = await sb.from('profiles').select('email,is_og,is_mod,joined_at').in('email',emails);
+    const {data:updata} = await sb.from('user_progress').select('email,total_plays,best_streak').in('email',emails);
+    const {data:lbdata} = await sb.from('leaderboard_played').select('email,played').in('email',emails);
+    const profMap = {}, upMap = {}, lbMap = {};
+    (pdata||[]).forEach(p=>profMap[p.email]=p);
+    (updata||[]).forEach(p=>upMap[p.email]=p);
+    (lbdata||[]).forEach(p=>lbMap[p.email]=p);
+    for(const email of emails) {
+      const prof = profMap[email]||{};
+      const up = upMap[email]||{};
+      const joinedAt = prof.joined_at ? new Date(prof.joined_at) : new Date();
+      const ageDays = Math.floor((new Date()-joinedAt)/(1000*60*60*24));
+      const pd = {
+        played: up.total_plays || lbMap[email]?.played || 0,
+        uniquePlayed: 0,
+        bestStreak: up.best_streak || 0,
+        is_og: prof.is_og || false,
+        is_mod: prof.is_mod || false,
+        accountAgeDays: ageDays,
+        eventPlayed: [],
+      };
+      badgeMap[email] = getEarnedBadges(pd);
+    }
+  } catch(e) { console.log('fetchBadges error', e); }
+  return badgeMap;
 }
 
 async function searchByPlayerId(){
@@ -3733,34 +3766,35 @@ async function renderMostBadgesTab(el) {
     // Get all profiles with their badges_count (we compute from user_progress)
     const {data:progData,error}=await sb.from('user_progress').select('email,played,total_plays,best_streak,current_streak').order('total_plays',{ascending:false}).limit(200);
     if(error) throw error;
-    // Get profile info for names/avatars/is_og/is_mod
-    const emails=(progData||[]).map(e=>e.email);
+    // Fetch bots too
+    const {data:botsData2}=await sb.from('bots').select('email,nickname,avatar,best_streak,current_streak,total_plays,created_at');
+    const botRows2=(botsData2||[]).map(b=>({email:b.email,played:[],total_plays:b.total_plays||0,best_streak:b.best_streak||0,current_streak:b.current_streak||0,_isBot:true,_botData:b}));
+    const allProg=[...(progData||[]),...botRows2];
+    const emails=allProg.map(e=>e.email);
     let profileMap={};
     if(emails.length){
-      const {data:pdata}=await sb.from('profiles').select('email,is_og,is_mod').in('email',emails);
+      const {data:pdata}=await sb.from('profiles').select('email,is_og,is_mod,joined_at').in('email',emails);
       (pdata||[]).forEach(p=>{profileMap[p.email]=p;});
-      const {data:lbdata}=await sb.from('leaderboard_played').select('email,name,avatar,is_mod').in('email',emails);
-      (lbdata||[]).forEach(p=>{if(!profileMap[p.email])profileMap[p.email]={};Object.assign(profileMap[p.email],{name:p.name,avatar:p.avatar});});
+      const {data:lbdata}=await sb.from('leaderboard_played').select('email,name,avatar,is_mod,played').in('email',emails);
+      (lbdata||[]).forEach(p=>{if(!profileMap[p.email])profileMap[p.email]={};Object.assign(profileMap[p.email],{name:p.name,avatar:p.avatar,_lbPlayed:p.played||0});});
     }
-    // Compute badge count for each user
-    const scored=(progData||[]).map(row=>{
+    const scored=allProg.map(row=>{
       const pf=profileMap[row.email]||{};
+      const joinedAt=pf.joined_at?new Date(pf.joined_at):(row._botData?.created_at?new Date(row._botData.created_at):new Date());
+      const ageDays=Math.floor((new Date()-joinedAt)/(1000*60*60*24));
       const prof={
-        played: row.total_plays||0,
+        played: row.total_plays||pf._lbPlayed||0,
         uniquePlayed: Array.isArray(row.played)?row.played.length:0,
         bestStreak: row.best_streak||0,
-        is_og: pf.is_og||false,
-        is_mod: pf.is_mod||false
+        is_og: ogSet.has(row.email),
+        is_mod: pf.is_mod||false,
+        accountAgeDays: ageDays,
+        eventPlayed: [],
       };
       const badges=getEarnedBadges(prof);
-      return {
-        email:row.email,
-        name:pf.name||'Unknown',
-        avatar:pf.avatar||'🎭',
-        is_mod:pf.is_mod||false,
-        played:badges.length,
-        badges
-      };
+      const name=row._isBot?row._botData.nickname:(pf.name||'Unknown');
+      const avatar=row._isBot?row._botData.avatar:(pf.avatar||'🎭');
+      return {email:row.email,name,avatar,is_mod:pf.is_mod||false,played:badges.length,badges};
     }).filter(e=>e.played>0).sort((a,b)=>b.played-a.played).slice(0,50);
     const myIdx=currentUser?scored.findIndex(e=>e.email===currentUser.email):-1;
     const stats=document.getElementById('myRankStats');
