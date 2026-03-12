@@ -1613,13 +1613,20 @@ const ALL_BADGES = [...NORMAL_BADGES, ...AGE_BADGES, ...EVENT_BADGES, ...SPECIAL
 let _prevEarnedBadgeIds = new Set();
 let _handlingSession = false;
 
-function checkAndNotifyBadges() {
+async function checkAndNotifyBadges() {
   if (!isPro() || !proStateCache) return;
   const ps = proStateCache;
   const { data: ogList } = { data: null }; // will check async below
-  const joinedAt = currentProfile?.joined_at ? new Date(currentProfile.joined_at) : new Date();
-  const accountAgeDays = Math.floor((new Date() - joinedAt) / (1000*60*60*24));
-  // Collect all event IDs played from localStorage
+  // Use joined_at from currentProfile, fall back to leaderboard_og joined_at
+  let joinedAt = currentProfile?.joined_at ? new Date(currentProfile.joined_at) : null;
+  if(!joinedAt) {
+    // Try to get from leaderboard_og which also stores joined_at
+    try {
+      const {data:ogRow} = await sb.from('leaderboard_og').select('joined_at').eq('email',currentUser.email).maybeSingle();
+      if(ogRow?.joined_at) joinedAt = new Date(ogRow.joined_at);
+    } catch(e) {}
+  }
+  const accountAgeDays = joinedAt ? Math.floor((new Date() - joinedAt) / (1000*60*60*24)) : 0;
   const eventPlayed = Object.keys(localStorage)
     .filter(k => k.startsWith('event_played_'))
     .map(k => k.replace('event_played_',''));
@@ -3999,7 +4006,8 @@ async function saveNewBot() {
     });
     // Add to leaderboard_og
     await sb.from('leaderboard_og').upsert({
-      email: botEmail, name: nickname, avatar: addBotIconSelection, is_mod: false
+      email: botEmail, name: nickname, avatar: addBotIconSelection, is_mod: false,
+        played: 0, current_streak: 0, best_streak: 0
     }, {onConflict:'email'});
     closeAddBotModal();
     toast('🤖 Bot "' + nickname + '" created!');
