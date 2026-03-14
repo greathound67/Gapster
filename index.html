@@ -3984,7 +3984,7 @@ async function renderMostBadgesTab(el) {
         is_og: ogSet.has(row.email),
         is_mod: pf.is_mod||false,
         accountAgeDays: ageDays,
-        eventPlayed: [],
+        eventPlayed: eventPlayMap[row.email]||[],
       };
       const badges=getEarnedBadges(prof);
       const name=row._isBot?row._botData.nickname:(pf.name||'Unknown');
