@@ -66,7 +66,7 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
 .auth-bar { position:relative; z-index:10; display:flex; justify-content:flex-end; align-items:center; gap:10px; padding:0 24px 10px; max-width:900px; margin:0 auto; flex-wrap:wrap; }
 .user-chip { display:flex; align-items:center; gap:8px; background:var(--card); border:2px solid var(--ink); border-radius:30px; padding:6px 14px 6px 8px; font-weight:700; font-size:.88rem; box-shadow:2px 2px 0 var(--ink); cursor:pointer; transition:all .15s; }
 .user-chip:hover { box-shadow:3px 3px 0 var(--ink); transform:translateY(-1px); }
-.user-chip img { width:28px; height:28px; border-radius:50%; border:2px solid var(--accent); }
+.user-chip img { width:28px; height:28px; border-radius:50%; border:2px solid var(--accent); max-width:100%; }
 .user-chip .user-name { max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .btn-signout { background:none; border:2px solid #ddd; border-radius:20px; padding:4px 10px; font-size:.78rem; font-weight:700; color:#888; cursor:pointer; transition:all .15s; }
 .btn-signout:hover { border-color:var(--primary); color:var(--primary); }
@@ -636,7 +636,7 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
       <div class="stars-row" id="starsRow"></div>
       <div class="rating-label" id="ratingLabel"></div>
       <button class="btn btn-primary" onclick="submitRating()">⭐ Submit Rating</button>
-      <button class="btn btn-outline" onclick="showScreen('screenHome')" style="margin-top:8px">Skip →</button>
+      <button class="btn btn-outline" onclick="skipRating()" style="margin-top:8px">Skip →</button>
     </div>
   </div>
 
@@ -1825,6 +1825,7 @@ async function initAuth() {
       }
     } else if (event === 'SIGNED_OUT') {
       currentUser = null; currentProfile = null; proStateCache = null;
+  if(_replySubscription) { try { sb.removeChannel(_replySubscription); } catch(e){} _replySubscription = null; }
       updateAuthUI(); updateHome();
     }
   });
@@ -2132,7 +2133,7 @@ function showScreen(id) {
   if (id === 'screenPopular') buildPopular();
   if (id === 'screenDaily') buildDailyScreen().catch(e=>console.log(e));
   if (id === 'screenMod') { document.getElementById('modPanelContent').innerHTML='<div class="lb-loading">Loading... ⏳</div>'; buildModPanel(); }
-  if (id === 'screenInbox') { if(currentUser) buildInboxScreen(); else { showScreen('screenHome'); openLoginModal(); } }
+  if (id === 'screenInbox') { if(currentUser) buildInboxScreen().catch(e=>console.log(e)); else { showScreen('screenHome'); openLoginModal(); } }
   window.scrollTo(0, 0);
 }
 
@@ -2335,24 +2336,25 @@ function revealStory() {
   document.getElementById('storyBody').innerHTML=currentML.template.split(/(\{[^}]+\})/g).map(p=>{
     const m=p.match(/^\{([^}]+)\}$/); return (m&&currentAnswers[m[1]])?`<span class="highlight">${escHtml(currentAnswers[m[1]])}</span>`:escHtml(p);
   }).join('');
-  document.getElementById('storyNextBtn').textContent=currentML?._isDaily?'✅ Finish':isPro()?'⭐ Rate This Story!':'→ Back Home';
-  if(!currentML?._isDaily) markPlayed(currentML.id);
-  // daily: markDailyPlayed() called in afterStory with await
+  document.getElementById('storyNextBtn').textContent=(currentML?._isDaily||currentML?._isEvent)?'✅ Finish':isPro()?'⭐ Rate This Story!':'→ Back Home';
+  // markPlayed is called in afterStory, not here
   showScreen('screenStory');
 }
 async function afterStory() {
   if(currentML?._isEvent) {
-    // Mark event as played — DB for signed in, localStorage fallback
     localStorage.setItem('event_played_' + currentML.id, '1');
     if(currentUser) {
       try {
         await sb.from('event_plays').upsert({ email: currentUser.email, event_id: currentML.id }, { onConflict: 'email,event_id' });
       } catch(e) { console.log('event_plays insert error:', e); }
     }
+    await markPlayed(currentML.id);
     await checkEventBadges();
     showScreen('screenDaily'); return;
   }
   if(currentML?._isDaily){ await markDailyPlayed(); showScreen('screenDaily'); return; }
+  // Normal story — mark played now (on submit/skip rating)
+  await markPlayed(currentML.id);
   isPro()?showScreen('screenRating'):showScreen('screenHome');
 }
 
@@ -2420,13 +2422,18 @@ function selectRating(n) {
   document.querySelectorAll('.star-btn').forEach((b,i)=>b.classList.toggle('active',i<n));
   document.getElementById('ratingLabel').textContent=ratingLabels[n];
 }
+function skipRating() {
+  // Just go home — markPlayed already called by afterStory before we got here
+  showScreen('screenHome');
+}
+
 async function submitRating() {
   if(!selectedRating){toast('Please select a rating first! ⭐');return;}
   if(!proStateCache){ toast("Please wait, still loading your progress..."); return; }
   proStateCache.ratings[currentML.id]=selectedRating;
   currentML.themes.forEach(t=>{proStateCache.themeScores[t]=(proStateCache.themeScores[t]||0)+selectedRating;proStateCache.themeCounts[t]=(proStateCache.themeCounts[t]||0)+1;});
   await pushProState();
-  checkAndNotifyBadges();
+  await checkAndNotifyBadges();
   // Write to global ratings
   try {
     await sb.from('global_ratings').upsert({
@@ -3125,12 +3132,52 @@ async function renderPopular() {
     // Sort
     let sorted = MAD_LIBS.map(m => ({ ml: m, ...stats[m.id], avg: stats[m.id].ratingCount ? (stats[m.id].ratingSum/stats[m.id].ratingCount) : 0 }));
 
-    if (activePopTab === 0) {
-      // Highest rated — only show those with at least 1 rating
-      sorted = sorted.filter(x => x.ratingCount > 0).sort((a,b) => b.avg-a.avg || b.ratingCount-a.ratingCount);
+    // For tiebreaking we need all-time stats too
+    const statsAllTime = {};
+    MAD_LIBS.forEach(m => { statsAllTime[m.id] = { plays: 0, ratingSum: 0, ratingCount: 0 }; });
+    let statsRecent = null;
+    if(activePopTime === 1) {
+      // We're viewing recent — fetch all-time for tiebreaker
+      const [atRatings, atPlays] = await Promise.all([
+        sb.from('global_ratings').select('mad_lib_id, rating'),
+        sb.from('global_plays').select('mad_lib_id')
+      ]);
+      (atRatings.data||[]).forEach(r=>{ if(statsAllTime[r.mad_lib_id]){statsAllTime[r.mad_lib_id].ratingSum+=r.rating;statsAllTime[r.mad_lib_id].ratingCount++;} });
+      (atPlays.data||[]).forEach(p=>{ if(statsAllTime[p.mad_lib_id]) statsAllTime[p.mad_lib_id].plays++; });
+      statsRecent = stats;
     } else {
-      // Most played
-      sorted = sorted.filter(x => x.plays > 0).sort((a,b) => b.plays-a.plays);
+      // We're viewing all-time — fetch recent (2 weeks) for tiebreaker
+      const cutoff2w = new Date(Date.now() - 14*24*60*60*1000).toISOString();
+      const [recRatings, recPlays] = await Promise.all([
+        sb.from('global_ratings').select('mad_lib_id, rating').gte('rated_at', cutoff2w),
+        sb.from('global_plays').select('mad_lib_id').gte('played_at', cutoff2w)
+      ]);
+      const recentStats = {};
+      MAD_LIBS.forEach(m => { recentStats[m.id] = { plays: 0, ratingSum: 0, ratingCount: 0 }; });
+      (recRatings.data||[]).forEach(r=>{ if(recentStats[r.mad_lib_id]){recentStats[r.mad_lib_id].ratingSum+=r.rating;recentStats[r.mad_lib_id].ratingCount++;} });
+      (recPlays.data||[]).forEach(p=>{ if(recentStats[p.mad_lib_id]) recentStats[p.mad_lib_id].plays++; });
+      statsRecent = recentStats;
+      Object.assign(statsAllTime, stats);
+    }
+
+    if (activePopTab === 0) {
+      // Highest rated — tiebreak: most played
+      sorted = sorted.filter(x => x.ratingCount > 0).sort((a,b) => {
+        if(b.avg !== a.avg) return b.avg - a.avg;
+        // Tiebreak: other time period plays
+        const tb = activePopTime===1 ? statsAllTime : statsRecent;
+        return (tb[b.ml.id]?.plays||0) - (tb[a.ml.id]?.plays||0);
+      });
+    } else {
+      // Most played — tiebreak: highest rated
+      sorted = sorted.filter(x => x.plays > 0).sort((a,b) => {
+        if(b.plays !== a.plays) return b.plays - a.plays;
+        // Tiebreak: other time period avg rating
+        const tb = activePopTime===1 ? statsAllTime : statsRecent;
+        const avgA = tb[a.ml.id]?.ratingCount ? tb[a.ml.id].ratingSum/tb[a.ml.id].ratingCount : 0;
+        const avgB = tb[b.ml.id]?.ratingCount ? tb[b.ml.id].ratingSum/tb[b.ml.id].ratingCount : 0;
+        return avgB - avgA;
+      });
     }
 
     if (!sorted.length) {
@@ -3267,7 +3314,7 @@ const AVATARS = [
   '🐷','🐙','🦄','🐲','🦋','🐢','🦖','🦕','🐳','🦈',
   '🌈','⭐','🔥','🌙','❄️','🌺','🍕','🍩','🎮','🚀',
   '🏆','💎','🎸','🎨','📚','🧙','🧜','🦸','🧟','🤖',
-  '🐻','🦝','🦩','🦚','🦜','🐬','🦋','🌵','🍦','🎪',
+  '🐻','🦝','🦩','🦚','🦜','🐬','🦫','🌵','🍦','🎪',
   '🧁','🌮','🎲','🃏','🎯','🪄','🧩','🪀','🛸','🌊',
 ];
 let selectedAvatar = null;
@@ -4256,6 +4303,11 @@ async function openEditBotModal(botEmail) {
   const modal = document.getElementById('editBotModal');
   document.getElementById('editBotEmail').value = botEmail;
   document.getElementById('editBotNickname').value = bot.nickname||'';
+  // Build icon grid
+  const editIconGrid = document.getElementById('editBotIconGrid');
+  const currentIcon = bot.avatar || '🤖';
+  document.getElementById('editBotCurrentIcon').textContent = currentIcon;
+  editIconGrid.innerHTML = AVATARS.map(a=>`<div class="bot-icon-opt${a===currentIcon?' selected':''}" onclick="selectEditBotIcon('${a}')">${a}</div>`).join('');
   document.getElementById('editBotBio').value = bot.bio||'';
   document.getElementById('editBotLoginChance').value = bot.login_chance||0.67;
   document.getElementById('editBotStreak').value = bot.current_streak||0;
@@ -4263,12 +4315,17 @@ async function openEditBotModal(botEmail) {
   document.getElementById('editBotTotalPlays').value = bot.total_plays||0;
   modal.classList.remove('hidden');
 }
+function selectEditBotIcon(icon) {
+  document.getElementById('editBotCurrentIcon').textContent = icon;
+  document.querySelectorAll('#editBotIconGrid .bot-icon-opt').forEach(el=>el.classList.toggle('selected',el.textContent===icon));
+}
 function closeEditBotModal() { document.getElementById('editBotModal').classList.add('hidden'); }
 
 async function saveEditBot() {
   const email = document.getElementById('editBotEmail').value;
   const nickname = document.getElementById('editBotNickname').value.trim();
   const bio = document.getElementById('editBotBio').value.trim();
+  const avatar = document.getElementById('editBotCurrentIcon').textContent||'🤖';
   const loginChance = parseFloat(document.getElementById('editBotLoginChance').value)||0.67;
   const currentStreak = parseInt(document.getElementById('editBotStreak').value)||0;
   const bestStreak = parseInt(document.getElementById('editBotBestStreak').value)||0;
@@ -4276,12 +4333,12 @@ async function saveEditBot() {
   if(!nickname) { toast('Nickname required!'); return; }
   try {
     await sb.from('bots').update({
-      nickname, bio:bio||null, login_chance:Math.max(0,Math.min(1,loginChance)),
+      nickname, avatar, bio:bio||null, login_chance:Math.max(0,Math.min(1,loginChance)),
       current_streak:currentStreak, best_streak:bestStreak, total_plays:totalPlays
     }).eq('email',email);
-    await sb.from('profiles').update({nickname,bio:bio||null}).eq('email',email);
-    await sb.from('leaderboard_played').update({name:nickname,played:totalPlays,current_streak:currentStreak,best_streak:bestStreak}).eq('email',email);
-    await sb.from('leaderboard_og').update({name:nickname}).eq('email',email);
+    await sb.from('profiles').update({nickname, avatar, bio:bio||null}).eq('email',email);
+    await sb.from('leaderboard_played').update({name:nickname, avatar, played:totalPlays,current_streak:currentStreak,best_streak:bestStreak}).eq('email',email);
+    await sb.from('leaderboard_og').update({name:nickname, avatar}).eq('email',email);
     closeEditBotModal();
     toast('✅ Bot updated!');
     buildModPanel();
@@ -4431,6 +4488,11 @@ setTimeout(initEventPopup, 1500);
     <div style="font-size:2.5rem;margin-bottom:6px;text-align:center">✏️</div>
     <h2 style="text-align:center;margin-bottom:16px">Edit Bot</h2>
     <input type="hidden" id="editBotEmail">
+    <div class="bot-field">
+      <label>Icon</label>
+      <div id="editBotCurrentIcon" style="font-size:2rem;margin-bottom:6px;text-align:center">🤖</div>
+      <div class="bot-icon-grid" id="editBotIconGrid" style="max-height:140px;overflow-y:auto"></div>
+    </div>
     <div class="bot-field">
       <label>Nickname</label>
       <input id="editBotNickname" type="text" maxlength="20">
