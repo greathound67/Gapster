@@ -1713,8 +1713,14 @@ const EVENT_BADGES = [
   { id:'ev_newyears',    icon:'🎉', name:'Party Starter',     desc:"Played the New Year's story",          check: (p) => p.eventPlayed?.includes('9008') },
 ];
 const SPECIAL_BADGES = [
-  { id:'og',  icon:'👑', name:'OG',        desc:'One of the first 50 accounts',  check: (p) => p.is_og },
-  { id:'mod', icon:'🛡️', name:'Moderator', desc:'Appointed Gapster mod',         check: (p) => p.is_mod },
+  { id:'og',            icon:'👑', name:'OG',            desc:'One of the first 50 accounts',                    check: (p) => p.is_og },
+  { id:'mod',           icon:'🛡️', name:'Moderator',      desc:'Appointed Gapster mod',                          check: (p) => p.is_mod },
+  { id:'perfectionist', icon:'🌌', name:'Perfectionist',  desc:'Earned every Play, Age, and Event badge',
+    check: (p) => {
+      const required = [...NORMAL_BADGES, ...AGE_BADGES, ...EVENT_BADGES];
+      return required.every(b => b.check(p));
+    }
+  },
 ];
 const ALL_BADGES = [...NORMAL_BADGES, ...AGE_BADGES, ...EVENT_BADGES, ...SPECIAL_BADGES];
 
@@ -2893,17 +2899,20 @@ async function getEventPlayedForUser(email) {
 }
 
 async function fetchBadgesForEmails(emails) {
-  // Returns map of email -> badges array
   if(!emails.length) return {};
   const badgeMap = {};
   try {
     const {data:pdata} = await sb.from('profiles').select('email,is_og,is_mod,joined_at').in('email',emails);
     const {data:updata} = await sb.from('user_progress').select('email,total_plays,best_streak').in('email',emails);
     const {data:lbdata} = await sb.from('leaderboard_played').select('email,played').in('email',emails);
-    const profMap = {}, upMap = {}, lbMap = {};
+    const {data:epdata} = await sb.from('event_plays').select('email,event_id').in('email',emails);
+    const {data:ogdata} = await sb.from('leaderboard_og').select('email').order('joined_at',{ascending:true}).limit(50);
+    const ogSet = new Set((ogdata||[]).map(r=>r.email));
+    const profMap = {}, upMap = {}, lbMap = {}, epMap = {};
     (pdata||[]).forEach(p=>profMap[p.email]=p);
     (updata||[]).forEach(p=>upMap[p.email]=p);
     (lbdata||[]).forEach(p=>lbMap[p.email]=p);
+    (epdata||[]).forEach(r=>{ if(!epMap[r.email]) epMap[r.email]=[]; epMap[r.email].push(String(r.event_id)); });
     for(const email of emails) {
       const prof = profMap[email]||{};
       const up = upMap[email]||{};
@@ -2913,10 +2922,10 @@ async function fetchBadgesForEmails(emails) {
         played: up.total_plays || lbMap[email]?.played || 0,
         uniquePlayed: 0,
         bestStreak: up.best_streak || 0,
-        is_og: prof.is_og || false,
+        is_og: ogSet.has(email),
         is_mod: prof.is_mod || false,
         accountAgeDays: ageDays,
-        eventPlayed: eventPlayMap[row.email]||[],
+        eventPlayed: epMap[email]||[],
       };
       badgeMap[email] = getEarnedBadges(pd);
     }
