@@ -1864,16 +1864,34 @@ async function handleSession(session) {
       await fetchProState();
       updateHome();
 
-      // Init badge baseline
+      // Init badge baseline — must include ALL fields to avoid false notifications
       if (proStateCache) {
         const ps = proStateCache;
+        // Get joined_at for age badges
+        const joinedAtBaseline = profile.joined_at ? new Date(profile.joined_at) : new Date();
+        const ageDaysBaseline = Math.floor((new Date() - joinedAtBaseline) / (1000*60*60*24));
+        // Get event plays from DB + localStorage
+        let eventPlayedBaseline = Object.keys(localStorage).filter(k=>k.startsWith('event_played_')).map(k=>k.replace('event_played_',''));
+        try {
+          const {data:epBaseline} = await sb.from('event_plays').select('event_id').eq('email', profile.email);
+          if(epBaseline) eventPlayedBaseline = [...new Set([...eventPlayedBaseline, ...epBaseline.map(r=>String(r.event_id))])];
+        } catch(e) {}
+        // Check OG status
+        let isOgBaseline = profile.is_og || false;
+        try {
+          const {data:ogBaseline} = await sb.from('leaderboard_og').select('email').order('joined_at',{ascending:true}).limit(50);
+          isOgBaseline = (ogBaseline||[]).some(r=>r.email===profile.email);
+        } catch(e) {}
         _prevEarnedBadgeIds = new Set(ALL_BADGES.filter(b => b.check({
           played: ps.totalPlays || ps.played.length,
           uniquePlayed: ps.played.length,
-          is_og: profile.is_og || false,
+          is_og: isOgBaseline,
           is_mod: profile.is_mod || false,
-          bestStreak: ps.bestStreak || 0
+          bestStreak: ps.bestStreak || 0,
+          accountAgeDays: ageDaysBaseline,
+          eventPlayed: eventPlayedBaseline,
         })).map(b => b.id));
+        _saveEarnedBadgeIds(_prevEarnedBadgeIds);
       }
 
       // Background tasks
@@ -2342,11 +2360,12 @@ function revealStory() {
 }
 async function afterStory() {
   if(currentML?._isEvent) {
-    localStorage.setItem('event_played_' + currentML.id, '1');
     if(currentUser) {
       try {
         await sb.from('event_plays').upsert({ email: currentUser.email, event_id: currentML.id }, { onConflict: 'email,event_id' });
       } catch(e) { console.log('event_plays insert error:', e); }
+    } else {
+      localStorage.setItem('event_played_' + currentML.id, '1');
     }
     await markPlayed(currentML.id);
     await checkEventBadges();
@@ -2693,12 +2712,26 @@ async function checkInactivityNotif() {
 
 // ===================== DAILY MAD LIB TRACKING =====================
 async function markDailyPlayed() {
-  const todayKey = 'daily_played_' + new Date().toLocaleDateString('en-CA');
-  const alreadyPlayed = localStorage.getItem(todayKey);
-  localStorage.setItem(todayKey, '1');
-  if (alreadyPlayed) return;
-  // Daily counts toward total played (same as regular stories)
-  if (currentML) await markPlayed(currentML.id);
+  const today = new Date().toLocaleDateString('en-CA');
+  if(currentUser) {
+    // For logged-in users, check Supabase global_plays instead of localStorage
+    try {
+      const {data} = await sb.from('global_plays').select('id')
+        .eq('email', currentUser.email)
+        .eq('mad_lib_id', currentML?.id || 0)
+        .gte('played_at', today + 'T00:00:00Z')
+        .maybeSingle();
+      if(data) return; // already played today
+    } catch(e) {}
+    if (currentML) await markPlayed(currentML.id);
+  } else {
+    // Signed out: use localStorage (device-scoped is fine for free users)
+    const todayKey = 'daily_played_' + today;
+    const alreadyPlayed = localStorage.getItem(todayKey);
+    localStorage.setItem(todayKey, '1');
+    if (alreadyPlayed) return;
+    if (currentML) await markPlayed(currentML.id);
+  }
 }
 
 // ===================== LEADERBOARD =====================
@@ -3616,9 +3649,21 @@ let dailyML = null;
 async function buildDailyScreen() {
   dailyML = getTodaysDailyML();
   const el = document.getElementById('dailyContent');
-  // Check if already played today
-  const todayKey = 'daily_played_' + new Date().toLocaleDateString('en-CA');
-  const alreadyPlayed = localStorage.getItem(todayKey);
+  // Check if already played today — use DB for logged in, localStorage for guests
+  const today = new Date().toLocaleDateString('en-CA');
+  let alreadyPlayed = false;
+  if(currentUser) {
+    try {
+      const {data} = await sb.from('global_plays').select('id')
+        .eq('email', currentUser.email)
+        .eq('mad_lib_id', dailyML?.id || 0)
+        .gte('played_at', today + 'T00:00:00Z')
+        .maybeSingle();
+      alreadyPlayed = !!data;
+    } catch(e) {}
+  } else {
+    alreadyPlayed = !!localStorage.getItem('daily_played_' + today);
+  }
 
   // Calculate time until next daily
   const now = new Date();
@@ -3650,7 +3695,7 @@ async function buildDailyScreen() {
       <div style="font-size:2.5rem;margin-bottom:6px">${_eventML.emoji}</div>
       <div style="font-family:'Boogaloo',cursive;font-size:1.5rem;margin-bottom:6px">${escHtml(_eventML.label)} Special!</div>
       <div style="color:#888;font-size:.85rem;margin-bottom:14px">A special story just for the occasion — only available for a few days!</div>
-      ${(await (async()=>{ if(!currentUser) return localStorage.getItem('event_played_' + _eventML.id); try{ const {data}=await sb.from('event_plays').select('id').eq('email',currentUser.email).eq('event_id',_eventML.id).maybeSingle(); return data||localStorage.getItem('event_played_'+_eventML.id); }catch(e){return localStorage.getItem('event_played_'+_eventML.id);}})())
+      ${(await (async()=>{ if(!currentUser) return localStorage.getItem('event_played_' + _eventML.id); try{ const {data}=await sb.from('event_plays').select('id').eq('email',currentUser.email).eq('event_id',_eventML.id).maybeSingle(); return !!data; }catch(e){return false;}})())
         ? `<div style="background:#e8f5e9;border:2px solid #81c784;border-radius:12px;padding:10px;margin-bottom:12px;font-weight:700;color:#2e7d32;font-size:.9rem">✅ You played this one!</div>
            <button class="btn btn-outline btn-sm" onclick="startEventML()">Play Again</button>`
         : `<button class="btn btn-primary" style="background:#ff9800;border-color:#e65100;width:100%" onclick="startEventML()">🎉 Play Event Story!</button>`
