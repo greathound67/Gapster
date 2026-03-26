@@ -1,34 +1,60 @@
-<h1 align="center">
-  ✨Gallery
-</h1>
+# Gallery
 
-<p align="center">
-  <em>A quick look at some of Gapster's features</em>
-</p>
+## Image Gallery
 
-<br/>
+<style>
+body {
+    background-color: #f0f0f0;
+    font-family: Arial, sans-serif;
+}
 
-<table align="center">
-  <tr>
-    <td align="center">
-      <img src="img1.png" width="300"/><br/>
-      <sub><b>Gapster home screen</b></sub>
-    </td>
-    <td align="center">
-      <img src="img2.png" width="300"/><br/>
-      <sub><b>Choose from 120+ stories</b></sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="img3.png" width="300"/><br/>
-      <sub><b>Each user gets a profile page</b></sub>
-    </td>
-    <td align="center">
-      <img src="img4.png" width="300"/><br/>
-      <sub><b>Compete for the top of the leaderboard</b></sub>
-    </td>
-  </tr>
-</table>
+.table-wrapper {
+    overflow: auto;
+    margin: 20px 0;
+}
 
-<br/>
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+table, th, td {
+    border: 1px solid #ddd;
+}
+
+th, td {
+    padding: 8px;
+    text-align: left;
+}
+
+th {
+    background-color: #4CAF50;
+    color: white;
+}
+
+tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+tr:hover {
+    background-color: #ddd;
+}
+</style>
+
+<div class="table-wrapper">
+    <table>
+        <tr>
+            <th>Image</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><img src='path_to_image_1.jpg' alt='Image 1' /></td>
+            <td>Description of image 1</td>
+        </tr>
+        <tr>
+            <td><img src='path_to_image_2.jpg' alt='Image 2' /></td>
+            <td>Description of image 2</td>
+        </tr>
+        <!-- Add more images as needed -->
+    </table>
+</div>
