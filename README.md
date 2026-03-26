@@ -10,7 +10,7 @@ A free browser-based fill-in-the-blank word game with 120 hilarious stories, dai
 - Daily story that rotates every day
 - Event stories for special holidays
 - Google or email sign-in with full user profiles
-- Leaderboards — most played, streaks, most badges,OG members
+- Leaderboards — most played, streaks, most badges, OG members
 - Badge system with 35+ badges to earn
 - Daily streak system
 - Works well on both mobile and desktop
