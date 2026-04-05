@@ -44,7 +44,6 @@
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Nunito:wght@400;600;700;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <style>
 :root {
   --bg: #fdf6e3; --ink: #1a1a2e; --primary: #e63946; --secondary: #457b9d;
@@ -1614,59 +1613,7 @@ const SUPABASE_URL = 'https://jmqphaoouagnmiwpuabr.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptcXBoYW9vdWFnbm1pd3B1YWJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4ODk5MTksImV4cCI6MjA4NzQ2NTkxOX0.0lSeox5X2uaycyKD77HahEmgLGEv1AEH2y7CGvGS4AQ';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
-// ===================== ONESIGNAL =====================
-const OS_APP_ID = 'd8f5d283-ed6f-4af2-a103-2a059b2c8bed';
-const OS_API_KEY = 'os_v2_app_3d25fa7nn5fpfiidficzwlel5wxx6ckl73vefemfzq3dtlhp2o3imlq5fxhn76fqsnzjhstodkw2ivjhbay2wehal4czowueavcb4da';
 
-window.OneSignalDeferred = window.OneSignalDeferred || [];
-OneSignalDeferred.push(async function(OneSignal) {
-  await OneSignal.init({
-    appId: OS_APP_ID,
-    notifyButton: { enable: false },
-    allowLocalhostAsSecureOrigin: true,
-    serviceWorkerPath: '/Gapster/OneSignalSDKWorker.js',
-    serviceWorkerParam: { scope: '/Gapster/' },
-  });
-});
-
-async function requestPushPermission() {
-  try {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function(OneSignal) {
-      try {
-        if(currentUser) await OneSignal.login(currentUser.email);
-        setTimeout(async () => {
-          try {
-            if(!OneSignal.Notifications.permission) {
-              await OneSignal.Notifications.requestPermission();
-            }
-          } catch(e) { console.log('Push request error:', e); }
-        }, 3000);
-      } catch(e) { console.log('OneSignal login error:', e); }
-    });
-  } catch(e) { console.log('Push permission error:', e); }
-}
-
-async function sendPushToUser(email, title, body) {
-  try {
-    const res = await fetch('https://api.onesignal.com/notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Key ' + OS_API_KEY,
-      },
-      body: JSON.stringify({
-        app_id: OS_APP_ID,
-        filters: [{ field: 'external_id', value: email }],
-        headings: { en: title },
-        contents: { en: body },
-        web_url: 'https://greathound67.github.io/Gapster/',
-      })
-    });
-    const data = await res.json();
-    if(data.errors) console.log('Push error:', data.errors);
-  } catch(e) { console.log('sendPush error:', e); }
-}
 
 const FREE_LIMIT = 50;
 const TOTAL = 120;
@@ -1800,14 +1747,11 @@ let currentUser = null;
 let currentProfile = null;
 
 async function initAuth() {
-  console.log('[Auth] initAuth started');
 
   // Check existing session first
   const { data: { session }, error } = await sb.auth.getSession();
-  console.log('[Auth] getSession result:', session ? 'HAS SESSION' : 'NO SESSION', error || '');
   
   if (session) {
-    console.log('[Auth] calling handleSession from getSession');
     await handleSession(session);
     if (window.location.hash.includes('access_token')) {
       history.replaceState(null, '', window.location.pathname);
@@ -1816,9 +1760,7 @@ async function initAuth() {
 
   // Listen for future sign-ins
   sb.auth.onAuthStateChange(async (event, session) => {
-    console.log('[Auth] onAuthStateChange:', event, session ? 'HAS SESSION' : 'NO SESSION', 'currentUser:', !!currentUser);
-    if (event === 'SIGNED_IN' && session && !currentUser) {
-      console.log('[Auth] calling handleSession from listener');
+    if (event === 'SIGNED_IN' && session && !currentUser && !_handlingSession) {
       await handleSession(session);
       if (window.location.hash.includes('access_token')) {
         history.replaceState(null, '', window.location.pathname);
@@ -1832,7 +1774,6 @@ async function initAuth() {
 }
 
 async function handleSession(session) {
-  console.log("[Auth] handleSession called, _handlingSession:", _handlingSession);
   if (_handlingSession) { console.log("[Auth] blocked by _handlingSession!"); return; }
   _handlingSession = true;
   try {
@@ -1849,13 +1790,88 @@ async function handleSession(session) {
     updateHome();
     closeLoginModal();
 
-    // Load profile
-    const { data: profile } = await sb.from('profiles').select('*').eq('email', currentUser.email).maybeSingle();
+    // Load profile — first try by email (normal case)
+    let { data: profile } = await sb.from('profiles').select('*').eq('email', currentUser.email).maybeSingle();
+
+    // If not found by email, a DB trigger may have corrupted all columns to the nickname.
+    // Try every recoverable path to find and heal the row.
+    if (!profile) {
+      try {
+        // Path 1: auth_uid stored on row (new accounts after this fix)
+        const { data: byUid } = await sb.from('profiles').select('*').eq('auth_uid', u.id).maybeSingle();
+        if (byUid) {
+          const corrupt = (val) => val && val === byUid.nickname;
+          await sb.from('profiles').update({
+            email: currentUser.email,
+            auth_uid: u.id,
+            avatar: corrupt(byUid.avatar) ? '' : byUid.avatar,
+            bio: corrupt(byUid.bio) ? null : byUid.bio,
+            warned_reason: corrupt(byUid.warned_reason) ? null : byUid.warned_reason,
+            warned_at: corrupt(byUid.warned_at) ? null : byUid.warned_at,
+          }).eq('auth_uid', u.id);
+          const { data: healed } = await sb.from('profiles').select('*').eq('email', currentUser.email).maybeSingle();
+          profile = healed;
+        }
+      } catch(e) { /* auth_uid column may not exist — safe to ignore */ }
+
+      // Path 2: DB trigger set email = nickname (older accounts without auth_uid).
+      // The corrupted email IS the nickname, so search for email = display_name variants.
+      if (!profile) {
+        try {
+          const candidates = [
+            u.user_metadata?.full_name,
+            u.user_metadata?.name,
+            u.email?.split('@')[0],
+          ].filter(Boolean);
+          for (const candidate of candidates) {
+            const { data: byCorruptEmail } = await sb.from('profiles')
+              .select('*').eq('email', candidate).maybeSingle();
+            if (byCorruptEmail) {
+              const corrupt = (val) => val && val === byCorruptEmail.nickname;
+              await sb.from('profiles').update({
+                email: currentUser.email,
+                auth_uid: u.id,
+                avatar: corrupt(byCorruptEmail.avatar) ? '' : byCorruptEmail.avatar,
+                bio: corrupt(byCorruptEmail.bio) ? null : byCorruptEmail.bio,
+                warned_reason: corrupt(byCorruptEmail.warned_reason) ? null : byCorruptEmail.warned_reason,
+                warned_at: corrupt(byCorruptEmail.warned_at) ? null : byCorruptEmail.warned_at,
+              }).eq('email', candidate);
+              const { data: healed } = await sb.from('profiles').select('*').eq('email', currentUser.email).maybeSingle();
+              profile = healed;
+              if (profile) break;
+            }
+          }
+        } catch(e) { /* safe to ignore */ }
+      }
+
+      // (Path 3 removed — too risky to match corrupted rows by pattern without unique key)
+    }
 
     if (!profile) {
       openNicknameModal();
     } else {
       currentProfile = profile;
+      // Heal any remaining corruption: avatar/bio/warned_reason should never equal the nickname
+      const needsHeal = (
+        (profile.avatar && profile.avatar === profile.nickname) ||
+        (profile.avatar && !profile.avatar.startsWith('http') && profile.avatar.length > 4) ||
+        (profile.bio && profile.bio === profile.nickname) ||
+        (profile.warned_reason && !VALID_WARN_REASONS.includes(profile.warned_reason))
+      );
+      if (needsHeal) {
+        const updates = {};
+        if (profile.avatar && profile.avatar === profile.nickname) updates.avatar = '';
+        if (profile.avatar && !profile.avatar.startsWith('http') && profile.avatar.length > 4) updates.avatar = '';
+        if (profile.bio && profile.bio === profile.nickname) updates.bio = null;
+        if (profile.warned_reason && !VALID_WARN_REASONS.includes(profile.warned_reason)) {
+          updates.warned_reason = null;
+          updates.warned_at = null;
+        }
+        try {
+          await sb.from('profiles').update(updates).eq('email', currentUser.email);
+          Object.assign(profile, updates);
+        } catch(e) {}
+      }
       if (profile.avatar) currentUser.avatar = profile.avatar;
       updateAuthUI();
       updateModUI();
@@ -1981,12 +1997,23 @@ async function saveNickname() {
     }
   } catch(e) { console.log('player_id gen error:', e); }
 
-  // Create profile
+  // Sanitize avatar: only use if it's an emoji (<=4 chars) or a URL
+  // Email signups have no avatar in user_metadata - default safely to ''
+  const rawAvatar = currentUser.avatar || '';
+  const safeAvatar = (rawAvatar.startsWith('http') || (rawAvatar.length > 0 && rawAvatar.length <= 4)) ? rawAvatar : '';
+
+  // Create profile — explicitly set ALL nullable fields to avoid any DB trigger/default corruption
   const { data: newProfile, error } = await sb.from('profiles').insert({
     email: currentUser.email,
+    auth_uid: currentUser.id,
     nickname: raw,
-    avatar: currentUser.avatar || '',
-    player_id: nextPlayerId
+    avatar: safeAvatar,
+    player_id: nextPlayerId,
+    bio: null,
+    warned_reason: null,
+    warned_at: null,
+    is_mod: false,
+    is_og: false
   }).select().single();
 
   if (error) { console.error(error); toast('Error saving nickname. Try again.'); return; }
@@ -2090,7 +2117,11 @@ async function pushProState() {
 
 async function markPlayed(id) {
   if (isPro()) {
-    if (!proStateCache) { console.log('proStateCache not ready'); return; }
+    if (!proStateCache) {
+      // Wait up to 5s for state to load rather than silently dropping the play
+      await waitForReady();
+      if (!proStateCache) { console.log('proStateCache still not ready, skipping markPlayed'); return; }
+    }
     // Always track (allow replays) — only add to unique list if not already there
     if (!proStateCache.played.includes(id)) proStateCache.played.push(id);
     // Increment total play count (separate from unique)
@@ -2263,7 +2294,7 @@ async function startGame(theme, backScreen) {
   if (theme) pool = pool.filter(m => m.themes.includes(theme));
   if (!pool.length) {
     if (theme) { toast('No more unplayed stories in that theme!'); return; }
-    if (!isPro()) { toast('🎉 All free stories played! Sign in for 70 more.'); openLoginModal(); return; }
+    if (!isPro()) { freeState.played = []; saveFreeState(); toast('🎉 All free stories played! Sign in for 70 more.'); openLoginModal(); return; }
     proStateCache.played = []; proStateCache.totalPlays = 0; await pushProState();
     toast('🎉 All 120 played! Starting over...'); startGame(theme, backScreen); return;
   }
@@ -2392,9 +2423,11 @@ async function shareStory() {
       // Fallback for desktop — copy to clipboard
       await navigator.clipboard.writeText(text);
       const btn = document.getElementById('copyStoryBtn');
-      const orig = btn.textContent;
-      btn.textContent = '✅ Copied!';
-      setTimeout(() => { btn.textContent = orig; }, 2000);
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = '✅ Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      }
     }
   } catch(e) {
     if (e.name !== 'AbortError') {
@@ -2449,22 +2482,26 @@ function skipRating() {
 async function submitRating() {
   if(!selectedRating){toast('Please select a rating first! ⭐');return;}
   if(!proStateCache){ toast("Please wait, still loading your progress..."); return; }
+  if(!currentML){ toast('No story loaded.'); return; }
+  // Clamp rating to 1-10 regardless of how selectedRating was set
+  selectedRating = Math.min(10, Math.max(1, Math.round(Number(selectedRating) || 1)));
   proStateCache.ratings[currentML.id]=selectedRating;
   currentML.themes.forEach(t=>{proStateCache.themeScores[t]=(proStateCache.themeScores[t]||0)+selectedRating;proStateCache.themeCounts[t]=(proStateCache.themeCounts[t]||0)+1;});
   await pushProState();
   await checkAndNotifyBadges();
-  // Write to global ratings
-  try {
-    await sb.from('global_ratings').upsert({
-      mad_lib_id: currentML.id,
-      email: currentUser.email,
-      rating: selectedRating,
-      rated_at: new Date().toISOString()
-    }, { onConflict: 'mad_lib_id,email' });
-  } catch(e) { console.log('Global rating error:', e); }
+  // Write to global ratings — only for main library stories (id 0-119), not daily/event
+  if (currentML.id < 200) {
+    try {
+      await sb.from('global_ratings').upsert({
+        mad_lib_id: currentML.id,
+        email: currentUser.email,
+        rating: selectedRating,
+        rated_at: new Date().toISOString()
+      }, { onConflict: 'mad_lib_id,email' });
+    } catch(e) { console.log('Global rating error:', e); }
+  }
   toast(ratingLabels[selectedRating]+' Rating saved!');
-  // Check for low rating pattern after submitting
-  setTimeout(() => { checkLowRatingFlag(); showScreen('screenHome'); }, 1400);
+  setTimeout(() => { showScreen('screenHome'); }, 1400);
 }
 
 // ===================== HISTORY =====================
@@ -2918,7 +2955,7 @@ function renderTable(entries,myIdx,getScore){
     <div class="lb-table-header"><div style="text-align:center">Rank</div><div>Player</div><div style="text-align:right">Score</div></div>
     ${entries.map((e,i)=>{
       const {score,extra}=getScore(e,i), isMe=currentUser&&e.email===currentUser.email;
-      return `<div class="lb-row${isMe?' is-me':''}" onclick="viewProfileByEmail('${escHtml(e.email)}')">
+      return `<div class="lb-row${isMe?' is-me':''}" data-email="${escHtml(e.email)}" onclick="viewProfileByEmail(this.dataset.email)">
         <div class="lb-rank ${rankClass(i)}">${rankEmoji(i)}</div>
         <div class="lb-user">
           <div class="lb-avatar">${e.avatar && typeof e.avatar==='string' && e.avatar.length<=4 ? e.avatar : '🎭'}</div>
@@ -3003,7 +3040,7 @@ async function viewProfileData(profile, backScreen){
 
   const played=playedData?.played||0;
   const isOwn=currentUser&&currentUser.email===profile.email;
-  if(isOwn) await checkStreakOnLogin(); // ensure streak is accurate before displaying
+  if(isOwn) await checkStreakOnLogin();
   const ps=isOwn?loadProState():null;
   const profileJoinedAt = profile.joined_at ? new Date(profile.joined_at) : new Date();
   const profileAgeDays = Math.floor((new Date() - profileJoinedAt) / (1000*60*60*24));
@@ -3022,9 +3059,42 @@ async function viewProfileData(profile, backScreen){
   }
   const profileForBadges={played, uniquePlayed: proStateCache?.played?.length || played, is_og:isOg, is_mod:profile.is_mod||false, bestStreak: isOwn?(proStateCache?.bestStreak||0):0, accountAgeDays:profileAgeDays, eventPlayed:profileEventPlayed};
   const earnedBadges=getEarnedBadges(profileForBadges);
-  const earnedIds=new Set(earnedBadges.map(b=>b.id));
 
   const joined=profile.joined_at?new Date(profile.joined_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):'Unknown';
+
+  // Build top 3 favorite themes for this profile
+  // For own profile use local themeScores; for others fetch from DB
+  let favThemesHtml = '';
+  if(isOwn && ps && Object.keys(ps.themeScores||{}).length) {
+    const top3 = Object.keys(ps.themeScores)
+      .filter(t => (ps.themeCounts[t]||0) >= 1)
+      .sort((a,b) => (ps.themeScores[b]/ps.themeCounts[b]) - (ps.themeScores[a]/ps.themeCounts[a]))
+      .slice(0,3);
+    if(top3.length) {
+      favThemesHtml = `<div style="margin-bottom:16px">
+        <div style="font-weight:800;font-size:.88rem;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">❤️ Favourite Themes</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${top3.map(themePill).join('')}</div>
+      </div>`;
+    }
+  } else if(!isOwn) {
+    // Fetch their theme scores from user_progress
+    try {
+      const {data:upData} = await sb.from('user_progress').select('theme_scores,theme_counts').eq('email',profile.email).maybeSingle();
+      if(upData && upData.theme_scores && Object.keys(upData.theme_scores).length) {
+        const ts = upData.theme_scores, tc = upData.theme_counts || {};
+        const top3 = Object.keys(ts)
+          .filter(t => (tc[t]||0) >= 1)
+          .sort((a,b) => (ts[b]/(tc[b]||1)) - (ts[a]/(tc[a]||1)))
+          .slice(0,3);
+        if(top3.length) {
+          favThemesHtml = `<div style="margin-bottom:16px">
+            <div style="font-weight:800;font-size:.88rem;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">❤️ Favourite Themes</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">${top3.map(themePill).join('')}</div>
+          </div>`;
+        }
+      }
+    } catch(e) {}
+  }
 
   document.getElementById('profileContent').innerHTML=`
     <div class="profile-card">
@@ -3059,12 +3129,18 @@ async function viewProfileData(profile, backScreen){
           ${isOwn&&ps&&Object.values(ps.ratings).length?`<div class="profile-stat"><div class="ps-num">${(Object.values(ps.ratings).reduce((a,b)=>a+b,0)/Object.values(ps.ratings).length).toFixed(1)}</div><div class="ps-label">Avg Rating</div></div>`:''}
         </div>
 
+        ${favThemesHtml}
+
+        <div style="margin-bottom:16px">
+          <button class="btn btn-outline btn-sm" style="width:100%" data-email="${escHtml(profile.email)}" data-nick="${escHtml(profile.nickname||'')}" onclick="openMiniLeaderboard(this.dataset.email, this.dataset.nick)">🏆 View on Leaderboard</button>
+        </div>
+
         <div class="badges-section">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
             <h3 style="margin:0">🏅 Badges</h3>
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-weight:800;font-size:.95rem;color:var(--primary)">${earnedBadges.length} / ${ALL_BADGES.length} collected</span>
-              <button class="btn btn-outline btn-sm" onclick="openBadgeViewer('${escHtml(profile.email)}')">View All</button>
+              <button class="btn btn-outline btn-sm" data-email="${escHtml(profile.email)}" onclick="openBadgeViewer(this.dataset.email)">View All</button>
             </div>
           </div>
           <div class="badges-grid">
@@ -3073,7 +3149,7 @@ async function viewProfileData(profile, backScreen){
                 <div class="badge-icon">${b.icon}</div>
                 <div class="badge-name">${escHtml(b.name)}</div>
               </div>`).join('')}
-            ${earnedBadges.length > 8 ? `<div class="badge earned" style="cursor:pointer" onclick="openBadgeViewer('${escHtml(profile.email)}')">
+            ${earnedBadges.length > 8 ? `<div class="badge earned" style="cursor:pointer" data-email="${escHtml(profile.email)}" onclick="openBadgeViewer(this.dataset.email)">
               <div class="badge-icon">+${earnedBadges.length - 8}</div>
               <div class="badge-name">More</div>
             </div>` : ''}
@@ -3245,22 +3321,28 @@ async function renderPopular() {
 // ===================== PLAYER ID SYSTEM =====================
 // Format: A101-A999, B101-B999, ..., Z101-Z999, AA101-AA999, AB101...
 function incrementPlayerId(existingIds) {
-  // Build set of all used numeric IDs under prefix A
-  const usedNums = new Set();
-  let maxNum = 100;
+  // Parse all used IDs into { prefix -> Set of nums }
+  const used = {};
   for (const id of existingIds) {
     if (!id) continue;
-    const m = id.match(/^A(\d+)$/);
+    const m = id.match(/^([A-Z]+)(\d+)$/);
     if (!m) continue;
-    const num = parseInt(m[1]);
-    usedNums.add(num);
-    if (num > maxNum) maxNum = num;
+    const [, prefix, numStr] = m;
+    if (!used[prefix]) used[prefix] = new Set();
+    used[prefix].add(parseInt(numStr));
   }
-  // Find lowest available number starting from 101
-  for (let n = 101; n <= maxNum + 1; n++) {
-    if (!usedNums.has(n)) return 'A' + n;
+  // Try prefixes A, B, C... until we find a free slot starting at 101
+  let prefix = 'A';
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const nums = used[prefix] || new Set();
+    let maxNum = 100;
+    for (const n of nums) if (n > maxNum) maxNum = n;
+    for (let n = 101; n <= maxNum + 1; n++) {
+      if (!nums.has(n)) return prefix + n;
+    }
+    prefix = nextPrefix(prefix);
   }
-  return 'A' + (maxNum + 1);
+  return 'A101'; // fallback
 }
 
 function comparePrefix(a, b) {
@@ -3328,6 +3410,10 @@ async function previewChangeNickname() {
 async function confirmChangeNickname() {
   const raw = document.getElementById('changeNicknameInput').value.trim();
   if (!raw || !currentUser) return;
+  // Re-validate — input could have been modified between preview and confirm
+  if (!/^[a-zA-Z0-9_\-\.]{2,20}$/.test(raw)) { toast('Invalid nickname format.'); return; }
+  const { data: takenCheck } = await sb.from('profiles').select('email').eq('nickname', raw).maybeSingle();
+  if (takenCheck && takenCheck.email !== currentUser.email) { toast('That nickname was just taken! Try another.'); return; }
   try {
     await sb.from('profiles').update({ nickname: raw }).eq('email', currentUser.email);
     await sb.from('leaderboard_og').update({ name: raw }).eq('email', currentUser.email);
@@ -3378,6 +3464,8 @@ function selectAvatar(emoji) {
 
 async function saveAvatarChoice() {
   if (!selectedAvatar || !currentUser) return;
+  // Validate avatar is from the known AVATARS list — reject console injection
+  if (!AVATARS.includes(selectedAvatar)) { toast('Invalid avatar selection.'); return; }
   try {
     await sb.from('profiles').update({ avatar: selectedAvatar }).eq('email', currentUser.email);
     await sb.from('leaderboard_og').update({ avatar: selectedAvatar }).eq('email', currentUser.email);
@@ -3420,9 +3508,13 @@ function closeContactModal() {
 
 async function sendContactMessage() {
   const msg = document.getElementById('contactMessage').value.trim();
-  const type = document.getElementById('contactType').value;
+  const rawType = document.getElementById('contactType').value;
+  // Whitelist valid types — reject anything injected via console
+  const VALID_TYPES = ['suggestion','question','bug','other'];
+  const type = VALID_TYPES.includes(rawType) ? rawType : 'other';
   if (!msg) { toast('Please write a message first!'); return; }
   if (msg.length < 5) { toast('Message too short!'); return; }
+  if (msg.length > 2000) { toast('Message too long (max 2000 characters).'); return; }
   try {
     await sb.from('messages').insert({
       sender_email: currentUser?.email || null,
@@ -3507,6 +3599,7 @@ function closeReplyNotif() {
 let currentMsgId = null;
 
 async function buildModMessages() {
+  if (!currentProfile?.is_mod) return;
   const el = document.getElementById('modPanelContent');
   el.innerHTML = '<div class="lb-loading">Loading messages... ⏳</div>';
   try {
@@ -3535,6 +3628,7 @@ async function buildModMessages() {
 }
 
 async function openMsgDetail(id) {
+  if (!currentProfile?.is_mod) return;
   currentMsgId = id;
   const el = document.getElementById('modPanelContent');
   el.innerHTML = '<div class="lb-loading">Loading... ⏳</div>';
@@ -3573,6 +3667,7 @@ async function openMsgDetail(id) {
 }
 
 async function sendReply(msgId, senderEmail) {
+  if (!currentProfile?.is_mod) return;
   const reply = document.getElementById('replyText')?.value?.trim();
   if (!reply) { toast('Write a reply first!'); return; }
   try {
@@ -3628,6 +3723,7 @@ function cancelDeleteConfirm() {
 }
 
 async function executeDeleteMessage(msgId) {
+  if (!currentProfile?.is_mod) return;
   try {
     const { error } = await sb.from('messages').delete().eq('id', msgId);
     if (error) throw error;
@@ -3637,6 +3733,7 @@ async function executeDeleteMessage(msgId) {
 }
 
 async function flagMessage(msgId) {
+  if (!currentProfile?.is_mod) return;
   try {
     await sb.from('messages').update({ flagged: true }).eq('id', msgId);
     toast('🚩 Message flagged.');
@@ -3663,6 +3760,22 @@ async function buildDailyScreen() {
     } catch(e) {}
   } else {
     alreadyPlayed = !!localStorage.getItem('daily_played_' + today);
+  }
+
+  // Resolve event played status BEFORE building HTML (can't await inside template literal)
+  let eventAlreadyPlayed = false;
+  if (_eventML) {
+    if (!currentUser) {
+      eventAlreadyPlayed = !!localStorage.getItem('event_played_' + _eventML.id);
+    } else {
+      try {
+        const {data} = await sb.from('event_plays').select('id')
+          .eq('email', currentUser.email)
+          .eq('event_id', _eventML.id)
+          .maybeSingle();
+        eventAlreadyPlayed = !!data;
+      } catch(e) {}
+    }
   }
 
   // Calculate time until next daily
@@ -3695,7 +3808,7 @@ async function buildDailyScreen() {
       <div style="font-size:2.5rem;margin-bottom:6px">${_eventML.emoji}</div>
       <div style="font-family:'Boogaloo',cursive;font-size:1.5rem;margin-bottom:6px">${escHtml(_eventML.label)} Special!</div>
       <div style="color:#888;font-size:.85rem;margin-bottom:14px">A special story just for the occasion — only available for a few days!</div>
-      ${(await (async()=>{ if(!currentUser) return localStorage.getItem('event_played_' + _eventML.id); try{ const {data}=await sb.from('event_plays').select('id').eq('email',currentUser.email).eq('event_id',_eventML.id).maybeSingle(); return !!data; }catch(e){return false;}})())
+      ${eventAlreadyPlayed
         ? `<div style="background:#e8f5e9;border:2px solid #81c784;border-radius:12px;padding:10px;margin-bottom:12px;font-weight:700;color:#2e7d32;font-size:.9rem">✅ You played this one!</div>
            <button class="btn btn-outline btn-sm" onclick="startEventML()">Play Again</button>`
         : `<button class="btn btn-primary" style="background:#ff9800;border-color:#e65100;width:100%" onclick="startEventML()">🎉 Play Event Story!</button>`
@@ -3778,8 +3891,8 @@ async function buildModPanel() {
             </div>
           </div>
           <div class="mod-actions">
-            <button class="mod-action-btn" onclick="openEditBotModal('${escHtml(b.email)}')">✏️ Edit</button>
-            <button class="mod-action-btn danger" onclick="deleteBot('${escHtml(b.email)}')">🗑️ Delete</button>
+            <button class="mod-action-btn" data-email="${escHtml(b.email)}" onclick="openEditBotModal(this.dataset.email)">✏️ Edit</button>
+            <button class="mod-action-btn danger" data-email="${escHtml(b.email)}" onclick="deleteBot(this.dataset.email)">🗑️ Delete</button>
           </div>
         </div>`).join('')}
       </div>` : ''}
@@ -3803,8 +3916,8 @@ async function buildModPanel() {
             ${fc > 0 ? `<span class="mod-flag-badge ${fc >= 3 ? 'danger' : ''}">🚩 ${fc} flag${fc!==1?'s':''}</span>` : ''}
           </div>
           <div class="mod-actions">
-            ${!isMe && !isBanned && !p.is_mod ? `<button class="mod-action-btn" onclick="openFlagConfirm('${escHtml(p.email)}','${escHtml(p.nickname||'user')}')">🚩 Flag</button>` : ''}
-            ${!isMe && !isBanned && !p.is_mod ? `<button class="mod-action-btn danger" onclick="confirmAutoBan('${escHtml(p.email)}','${escHtml(p.nickname||'user')}')">🚫 Ban</button>` : ''}
+            ${!isMe && !isBanned && !p.is_mod ? `<button class="mod-action-btn" data-email="${escHtml(p.email)}" data-nick="${escHtml(p.nickname||'user')}" onclick="openFlagConfirm(this.dataset.email,this.dataset.nick)">🚩 Flag</button>` : ''}
+            ${!isMe && !isBanned && !p.is_mod ? `<button class="mod-action-btn danger" data-email="${escHtml(p.email)}" data-nick="${escHtml(p.nickname||'user')}" onclick="confirmAutoBan(this.dataset.email,this.dataset.nick)">🚫 Ban</button>` : ''}
             ${!isMe && isBanned ? '<span style="font-size:.8rem;color:#dc3545;font-weight:800">BANNED</span>' : ''}
           </div>
         </div>`;
@@ -3876,40 +3989,51 @@ async function submitFlag(reason) {
     addNotification(flagTargetEmail, 'flag', '🚩 Account Warning', 'A moderator has flagged your nickname as inappropriate. You will need to choose a new one on next login.');
     }
 
-    // Auto-ban if 3+ flags
-    if (totalFlags >= 3) {
-      await sb.from('bans').upsert({ email: flagTargetEmail, reason: 'Reached 3 flags' }, { onConflict: 'email' });
-      toast('🚫 User has been auto-banned (3 flags reached).');
-    }
-
-    // Refresh panel
+    // Refresh panel — bans are always manual, never automatic
     buildModPanel();
   } catch(e) { console.error(e); toast('Flag failed. Try again.'); }
 }
+
+// Valid ban reasons written by mods — anything else is DB corruption and must be ignored
+const VALID_BAN_REASONS = ['Manual ban by mod'];
+// Valid warning reasons set by mod actions — anything else is corruption
+const VALID_WARN_REASONS = ['username', 'hacking', 'inappropriate_bio', 'inappropriate_message'];
 
 // Check if user is banned on login
 async function checkBanAndWarnings() {
   if (!currentUser || !currentProfile) return;
   // Mods are exempt from bans and warnings
   if (currentProfile.is_mod) return;
-  // Check ban
+  // Check ban — only honour rows with a recognised reason to prevent DB-trigger corruption
+  // from accidentally banning users on account creation
   const { data: ban } = await sb.from('bans').select('*').eq('email', currentUser.email).maybeSingle();
   if (ban) {
-    // Show permanent ban screen
-    document.getElementById('main').innerHTML = `<div style="text-align:center;padding:60px 20px;max-width:500px;margin:0 auto">
-      <div style="font-size:5rem;margin-bottom:16px">🚫</div>
-      <h2 style="font-family:'Boogaloo',cursive;font-size:2.5rem;color:var(--primary);margin-bottom:12px">Account Banned</h2>
-      <p style="color:#666;line-height:1.6">Your account has been permanently banned from Gapster due to repeated violations of community guidelines.</p>
-      <p style="margin-top:16px;color:#aaa;font-size:.85rem">If you believe this is a mistake, contact the site owner.</p>
-    </div>`;
-    return false;
+    const isLegitBan = VALID_BAN_REASONS.some(r => ban.reason && ban.reason.startsWith(r));
+    if (!isLegitBan) {
+      // Corrupt row from DB trigger — delete it and carry on
+      console.log('Ignoring corrupt ban row:', ban.reason);
+      try { await sb.from('bans').delete().eq('email', currentUser.email); } catch(e) {}
+    } else {
+      // Legitimate ban — show ban screen
+      document.getElementById('main').innerHTML = `<div style="text-align:center;padding:60px 20px;max-width:500px;margin:0 auto">
+        <div style="font-size:5rem;margin-bottom:16px">🚫</div>
+        <h2 style="font-family:'Boogaloo',cursive;font-size:2.5rem;color:var(--primary);margin-bottom:12px">Account Banned</h2>
+        <p style="color:#666;line-height:1.6">Your account has been permanently banned from Gapster due to repeated violations of community guidelines.</p>
+        <p style="margin-top:16px;color:#aaa;font-size:.85rem">If you believe this is a mistake, contact the site owner.</p>
+      </div>`;
+      return false;
+    }
   }
-  // Check warnings
+  // Check warnings — only act on known warning reasons, ignore any corrupt values
   const warned = currentProfile.warned_reason;
   const warnedAt = currentProfile.warned_at;
-  if (warned && warnedAt) {
+  if (warned && warnedAt && VALID_WARN_REASONS.includes(warned)) {
     showWarning(warned);
     return true;
+  } else if (warned && !VALID_WARN_REASONS.includes(warned)) {
+    // Corrupt warned_reason (e.g. set to nickname by DB trigger) — clear it silently
+    try { await sb.from('profiles').update({ warned_reason: null, warned_at: null }).eq('email', currentUser.email); } catch(e) {}
+    if (currentProfile) { currentProfile.warned_reason = null; currentProfile.warned_at = null; }
   }
   // Auto-flag low ratings
   checkLowRatingFlag();
@@ -3917,28 +4041,27 @@ async function checkBanAndWarnings() {
 }
 
 async function checkLowRatingFlag() {
-  if (!proStateCache) return;
-  if (currentProfile?.is_mod) return; // mods exempt
+  // Only flags for mod review — never warns or affects the user directly
+  // Threshold: 25+ ratings with >50% being 1 star (very extreme abuse pattern only)
+  if (!proStateCache || !currentUser) return;
+  if (currentProfile?.is_mod) return;
   const ratings = Object.values(proStateCache.ratings || {});
-  if (ratings.length >= 10) {
-    const lowRatings = ratings.filter(r => r <= 2).length;
-    if (lowRatings / ratings.length >= 1/3) {
-      // Check if already warned
-      const { data: existingFlag } = await sb.from('flags').select('id')
-        .eq('flagged_email', currentUser.email).eq('reason', 'low_rating').maybeSingle();
-      if (!existingFlag) {
-        await sb.from('flags').insert({
-          flagged_email: currentUser.email,
-          flagged_by: 'system',
-          reason: 'low_rating',
-          note: 'Auto-flagged: >1/3 of ratings are 2 stars or under'
-        });
-        await sb.from('profiles').update({
-          warned_reason: 'low_rating',
-          warned_at: new Date().toISOString()
-        }).eq('email', currentUser.email);
-        showWarning('low_rating');
-      }
+  if (ratings.length >= 25) {
+    const oneStarCount = ratings.filter(r => r <= 1).length;
+    if (oneStarCount / ratings.length >= 0.5) {
+      try {
+        const { data: existingFlag } = await sb.from('flags').select('id')
+          .eq('flagged_email', currentUser.email).eq('reason', 'low_rating').maybeSingle();
+        if (!existingFlag) {
+          await sb.from('flags').insert({
+            flagged_email: currentUser.email,
+            flagged_by: 'system',
+            reason: 'low_rating',
+            note: 'Auto-flagged for mod review: >50% of 25+ ratings are 1 star'
+          });
+          // No warning shown to user — mod decides what to do
+        }
+      } catch(e) {}
     }
   }
 }
@@ -4098,7 +4221,7 @@ async function renderMostBadgesTab(el) {
       <div class="lb-table-header"><div style="text-align:center">Rank</div><div>Player</div><div style="text-align:right">Badges</div></div>
       ${scored.map((e,i)=>{
         const isMe=currentUser&&e.email===currentUser.email;
-        return `<div class="lb-row${isMe?' is-me':''}" onclick="viewProfileByEmail('${escHtml(e.email)}')">
+        return `<div class="lb-row${isMe?' is-me':''}" data-email="${escHtml(e.email)}" onclick="viewProfileByEmail(this.dataset.email)">
           <div class="lb-rank ${rankClass(i)}">${rankEmoji(i)}</div>
           <div class="lb-user">
             <div class="lb-avatar">${e.avatar&&e.avatar.length<=4?e.avatar:'🎭'}</div>
@@ -4111,7 +4234,7 @@ async function renderMostBadgesTab(el) {
         </div>`;
       }).join('')}
     </div>`;
-  } catch(e){console.error('MostBadges error:', e, e.stack);el.innerHTML='<div class="lb-empty">Could not load. Try again.<br><small style="color:#aaa">'+escHtml(String(e))+'</small></div>';}
+  } catch(e){console.error('MostBadges error:', e, e.stack);el.innerHTML='<div class="lb-empty">Could not load. Try again.</div>';}
 }
 
 // ===================== EMAIL AUTH =====================
@@ -4257,7 +4380,7 @@ async function dismissNotif(id) {
 async function clearAllNotifs() {
   if(!currentUser) return;
   if(!confirm('Delete all notifications?')) return;
-  try { await sb.from('notifications').delete().eq('email',currentUser.email); } catch(e) { console.log(e); toast('Could not clear. Check RLS policies.'); return; }
+  try { await sb.from('notifications').delete().eq('email',currentUser.email); } catch(e) { console.log(e); toast('Could not clear notifications. Please try again.'); return; }
   updateNotifBell();
   await buildInboxScreen();
   toast('🗑️ Inbox cleared.');
@@ -4289,6 +4412,7 @@ async function getNextBotPlayerId() {
 let addBotIconSelection = '🤖';
 
 function openAddBotModal() {
+  if (!currentProfile?.is_mod) return;
   addBotIconSelection = '🤖';
   document.getElementById('addBotModal').classList.remove('hidden');
   // Build icon grid
@@ -4302,6 +4426,7 @@ function selectBotIcon(icon) {
 }
 
 async function saveNewBot() {
+  if (!currentProfile?.is_mod) return;
   const nickname = document.getElementById('botNicknameInput')?.value?.trim();
   const bio = document.getElementById('botBioInput')?.value?.trim();
   const loginChance = parseFloat(document.getElementById('botLoginChanceInput')?.value) || 0.67;
@@ -4339,10 +4464,11 @@ async function saveNewBot() {
     toast('🤖 Bot "' + nickname + '" created!');
     showNewAccountPopup(nickname);
     buildModPanel();
-  } catch(e) { console.error(e); toast('Could not create bot. Check console.'); }
+  } catch(e) { console.error(e); toast('Could not create bot. Try again.'); }
 }
 
 async function openEditBotModal(botEmail) {
+  if (!currentProfile?.is_mod) return;
   const {data:bot} = await sb.from('bots').select('*').eq('email',botEmail).maybeSingle();
   if(!bot) { toast('Bot not found.'); return; }
   const modal = document.getElementById('editBotModal');
@@ -4367,6 +4493,7 @@ function selectEditBotIcon(icon) {
 function closeEditBotModal() { document.getElementById('editBotModal').classList.add('hidden'); }
 
 async function saveEditBot() {
+  if (!currentProfile?.is_mod) return;
   const email = document.getElementById('editBotEmail').value;
   const nickname = document.getElementById('editBotNickname').value.trim();
   const bio = document.getElementById('editBotBio').value.trim();
@@ -4391,6 +4518,7 @@ async function saveEditBot() {
 }
 
 async function deleteBot(email) {
+  if (!currentProfile?.is_mod) return;
   if(!confirm('Delete this bot permanently?')) return;
   try {
     await sb.from('bots').delete().eq('email',email);
@@ -4492,6 +4620,162 @@ function closeBadgeViewer(e) {
   document.getElementById('badgeViewerOverlay').style.display = 'none';
 }
 
+// ===================== MINI LEADERBOARD =====================
+let _miniLbEmail = null;
+let _miniLbNick = '';
+let _miniLbTab = 0;
+
+async function openMiniLeaderboard(email, nick) {
+  _miniLbEmail = email;
+  _miniLbNick = nick || 'this player';
+  _miniLbTab = 0;
+  document.querySelectorAll('[id^="miniLbTab"]').forEach((t,i) => t.classList.toggle('active', i===0));
+  document.getElementById('miniLbTitle').textContent = nick ? nick + "'s Rankings" : 'Leaderboard';
+  document.getElementById('miniLbOverlay').style.display = 'flex';
+  await renderMiniLbTab();
+}
+
+function closeMiniLeaderboard(e) {
+  if (e && e.target !== document.getElementById('miniLbOverlay')) return;
+  document.getElementById('miniLbOverlay').style.display = 'none';
+}
+
+async function switchMiniLbTab(idx) {
+  _miniLbTab = idx;
+  document.querySelectorAll('[id^="miniLbTab"]').forEach((t,i) => t.classList.toggle('active', i===idx));
+  await renderMiniLbTab();
+}
+
+async function renderMiniLbTab() {
+  const el = document.getElementById('miniLbContent');
+  el.innerHTML = '<div class="lb-loading">Loading... ⏳</div>';
+  try {
+    if (_miniLbTab === 0) await renderMiniOG(el);
+    else if (_miniLbTab === 1) await renderMiniMostPlayed(el);
+    else if (_miniLbTab === 2) await renderMiniStreaks(el);
+    else await renderMiniBadges(el);
+  } catch(e) {
+    el.innerHTML = '<div class="lb-empty">Could not load. Try again.</div>';
+  }
+}
+
+function _miniRankEmoji(i) { return i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1); }
+
+function _renderMiniTable(entries, targetEmail, scoreHtml) {
+  if (!entries.length) return '<div class="lb-empty">No data yet.</div>';
+  const targetIdx = entries.findIndex(e => e.email === targetEmail);
+
+  let html = '';
+
+  // If player is outside top 10, show a highlight card first
+  if (targetIdx > 9) {
+    const p = entries[targetIdx];
+    html += `<div style="background:linear-gradient(135deg,#fff8e1,#fffde7);border:2px solid var(--accent3);border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+      <div style="font-family:'Boogaloo',cursive;font-size:1.3rem;color:var(--accent)">#${targetIdx+1}</div>
+      <div style="font-size:1.5rem">${p.avatar||'🎭'}</div>
+      <div style="font-weight:800;flex:1">${escHtml(p.name||'?')} <span class="lb-you-tag">THEM</span></div>
+      <div style="font-family:'Boogaloo',cursive;font-size:1.2rem;color:var(--secondary)">${scoreHtml(p)}</div>
+    </div>`;
+  }
+
+  // Show top 10 with player highlighted
+  html += '<div class="lb-table">';
+  entries.slice(0, Math.max(10, targetIdx+1 <= 10 ? 10 : 0)).forEach((e, i) => {
+    if (i >= 10 && e.email !== targetEmail) return;
+    const isTarget = e.email === targetEmail;
+    html += `<div class="lb-row${isTarget?' is-me':''}" style="${isTarget?'background:linear-gradient(135deg,#fff8e1,#fffde7);':''}">
+      <div class="lb-rank" style="font-family:'Boogaloo',cursive;font-size:${i<3?'1.4':'1.1'}rem">${_miniRankEmoji(i)}</div>
+      <div class="lb-user">
+        <div class="lb-avatar">${e.avatar||'🎭'}</div>
+        <span class="lb-name">${escHtml(e.name||'Anonymous')}${isTarget?'<span class="lb-you-tag">THEM</span>':''}</span>
+      </div>
+      <div class="lb-score" style="font-family:'Boogaloo',cursive;font-size:1.1rem">${scoreHtml(e)}</div>
+    </div>`;
+  });
+  html += '</div>';
+
+  if (targetIdx === -1) {
+    html += `<div style="text-align:center;color:#aaa;font-size:.85rem;padding:10px;font-weight:700">
+      ${escHtml(_miniLbNick)} doesn't appear on this leaderboard yet.
+    </div>`;
+  }
+  return html;
+}
+
+async function renderMiniOG(el) {
+  const {data,error} = await sb.from('leaderboard_og').select('*').order('joined_at',{ascending:true}).limit(50);
+  if(error) throw error;
+  const emails = (data||[]).map(e=>e.email);
+  let pidMap = {};
+  if(emails.length) {
+    const {data:pdata} = await sb.from('profiles').select('email,player_id').in('email',emails);
+    (pdata||[]).forEach(p => { pidMap[p.email] = p.player_id||'Z999'; });
+  }
+  const sorted = (data||[]).slice().sort((a,b) => {
+    const pa=pidMap[a.email]||'Z999', pb=pidMap[b.email]||'Z999';
+    if(pa.length!==pb.length) return pa.length-pb.length;
+    return pa<pb?-1:pa>pb?1:0;
+  });
+  const entries = sorted.map(e => ({ email:e.email, name:e.name, avatar:e.avatar }));
+  el.innerHTML = _renderMiniTable(entries, _miniLbEmail, () => '👑');
+}
+
+async function renderMiniMostPlayed(el) {
+  const {data,error} = await sb.from('leaderboard_played').select('*').order('played',{ascending:false}).limit(100);
+  if(error) throw error;
+  const entries = (data||[]).filter(e=>e.played>0).map(e=>({email:e.email,name:e.name,avatar:e.avatar,score:e.played}));
+  el.innerHTML = _renderMiniTable(entries, _miniLbEmail, e => e.score + ' played');
+}
+
+async function renderMiniStreaks(el) {
+  const {data,error} = await sb.from('user_progress').select('email,best_streak').order('best_streak',{ascending:false}).limit(100);
+  if(error) throw error;
+  const emails = (data||[]).map(r=>r.email);
+  let nameMap = {};
+  if(emails.length) {
+    const {data:lbData} = await sb.from('leaderboard_played').select('email,name,avatar').in('email',emails);
+    (lbData||[]).forEach(p => { nameMap[p.email]={name:p.name,avatar:p.avatar}; });
+  }
+  const entries = (data||[]).filter(e=>e.best_streak>0).map(e=>({
+    email:e.email, name:nameMap[e.email]?.name||'?', avatar:nameMap[e.email]?.avatar||'🎭', score:e.best_streak
+  }));
+  el.innerHTML = _renderMiniTable(entries, _miniLbEmail, e => e.score + ' day streak');
+}
+
+async function renderMiniBadges(el) {
+  // Reuse the same scored data from renderMostBadgesTab but simplified
+  const {data:progData} = await sb.from('user_progress').select('email,total_plays,best_streak').order('total_plays',{ascending:false}).limit(200);
+  const {data:allProfiles} = await sb.from('profiles').select('email,is_mod,joined_at').order('joined_at',{ascending:true});
+  const {data:ogRows} = await sb.from('leaderboard_og').select('email').order('joined_at',{ascending:true}).limit(50);
+  const {data:lbData} = await sb.from('leaderboard_played').select('email,name,avatar,played').order('played',{ascending:false}).limit(200);
+  const {data:allEP} = await sb.from('event_plays').select('email,event_id');
+
+  const ogSet = new Set((ogRows||[]).map(r=>r.email));
+  const lbMap = {}; (lbData||[]).forEach(p=>{lbMap[p.email]=p;});
+  const profMap = {}; (allProfiles||[]).forEach(p=>{profMap[p.email]=p;});
+  const epMap = {}; (allEP||[]).forEach(r=>{if(!epMap[r.email])epMap[r.email]=[];epMap[r.email].push(String(r.event_id));});
+
+  const scored = (progData||[]).map(row => {
+    const pf = profMap[row.email]||{};
+    const joinedAt = pf.joined_at ? new Date(pf.joined_at) : new Date();
+    const ageDays = Math.floor((new Date()-joinedAt)/(1000*60*60*24));
+    const badges = getEarnedBadges({
+      played: row.total_plays||lbMap[row.email]?.played||0,
+      uniquePlayed:0, bestStreak:row.best_streak||0,
+      is_og:ogSet.has(row.email), is_mod:pf.is_mod||false,
+      accountAgeDays:ageDays, eventPlayed:epMap[row.email]||[],
+    });
+    return {
+      email:row.email,
+      name:lbMap[row.email]?.name||'?',
+      avatar:lbMap[row.email]?.avatar||'🎭',
+      score:badges.length
+    };
+  }).filter(e=>e.score>0).sort((a,b)=>b.score-a.score);
+
+  el.innerHTML = _renderMiniTable(scored, _miniLbEmail, e => e.score + ' badges');
+}
+
 // ===================== INIT =====================
 buildStarsRow();
 updateAuthUI();
@@ -4578,6 +4862,22 @@ setTimeout(initEventPopup, 1500);
       <button onclick="closeBadgeViewer()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;line-height:1">✕</button>
     </div>
     <div id="badgeViewerContent" style="overflow-y:auto;padding:18px;flex:1"></div>
+  </div>
+</div>
+<!-- MINI LEADERBOARD MODAL -->
+<div id="miniLbOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:500;align-items:center;justify-content:center;padding:16px" onclick="closeMiniLeaderboard(event)">
+  <div style="background:var(--bg);border:3px solid var(--ink);border-radius:20px;max-width:540px;width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:8px 8px 0 var(--ink);overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:2px solid var(--ink);flex-shrink:0">
+      <div style="font-family:'Boogaloo',cursive;font-size:1.4rem">🏆 <span id="miniLbTitle">Leaderboard</span></div>
+      <button onclick="closeMiniLeaderboard()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;line-height:1;color:#aaa">✕</button>
+    </div>
+    <div style="display:flex;gap:6px;padding:12px 16px 8px;flex-shrink:0;overflow-x:auto">
+      <button class="pop-time-tab active" id="miniLbTab0" onclick="switchMiniLbTab(0)">👑 OG</button>
+      <button class="pop-time-tab" id="miniLbTab1" onclick="switchMiniLbTab(1)">🎭 Most Played</button>
+      <button class="pop-time-tab" id="miniLbTab2" onclick="switchMiniLbTab(2)">🔥 Streaks</button>
+      <button class="pop-time-tab" id="miniLbTab3" onclick="switchMiniLbTab(3)">🏅 Badges</button>
+    </div>
+    <div id="miniLbContent" style="overflow-y:auto;padding:12px 16px 16px;flex:1"><div class="lb-loading">Loading... ⏳</div></div>
   </div>
 </div>
 </body>
