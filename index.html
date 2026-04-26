@@ -508,6 +508,16 @@ header p { font-size:1rem; color:var(--secondary); font-weight:700; margin-top:6
 .event-popup{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(120px);background:linear-gradient(135deg,#ff6b35,#f7c59f);color:#fff;border:3px solid var(--ink);border-radius:30px;padding:12px 20px;font-weight:800;font-size:.95rem;z-index:300;box-shadow:4px 4px 0 var(--ink);transition:transform .5s cubic-bezier(.175,.885,.32,1.275);pointer-events:auto;max-width:92vw;text-align:center;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;}
 .event-popup.show{transform:translateX(-50%) translateY(0);}
 
+
+/* ===== RATE US POPUP ===== */
+.rate-us-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:600; display:flex; align-items:center; justify-content:center; padding:20px; animation:fadeIn .3s ease; }
+.rate-us-box { background:var(--card); border:3px solid var(--ink); border-radius:24px; padding:36px 28px; max-width:360px; width:100%; text-align:center; box-shadow:8px 8px 0 var(--ink); animation:popIn .3s ease; }
+.rate-us-box h2 { font-family:'Boogaloo',cursive; font-size:2rem; margin-bottom:8px; }
+.rate-us-box p { color:#666; font-size:.95rem; margin-bottom:20px; line-height:1.5; }
+.rate-us-stars { display:flex; justify-content:center; gap:8px; margin:16px 0; }
+.rate-us-star { font-size:2.4rem; cursor:pointer; transition:transform .15s; filter:grayscale(1) opacity(.3); border:none; background:none; outline:none; user-select:none; }
+.rate-us-star.active { filter:none; transform:scale(1.2); }
+.rate-us-label { font-family:'Boogaloo',cursive; font-size:1.3rem; color:var(--primary); min-height:30px; margin-bottom:16px; }
 /* ===== ADD BOT MODAL ===== */
 .bot-field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;text-align:left;}
 .bot-field label{font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--secondary);}
@@ -2390,6 +2400,9 @@ function revealStory() {
   showScreen('screenStory');
 }
 async function afterStory() {
+  // Count every completed story this session for the rate-us popup
+  _sessionStoriesPlayed++;
+
   if(currentML?._isEvent) {
     if(currentUser) {
       try {
@@ -2400,12 +2413,18 @@ async function afterStory() {
     }
     await markPlayed(currentML.id);
     await checkEventBadges();
+    maybeShowRateUs();
     showScreen('screenDaily'); return;
   }
-  if(currentML?._isDaily){ await markDailyPlayed(); showScreen('screenDaily'); return; }
-  // Normal story — mark played now (on submit/skip rating)
+  if(currentML?._isDaily){ await markDailyPlayed(); maybeShowRateUs(); showScreen('screenDaily'); return; }
+  // Normal story
   await markPlayed(currentML.id);
-  isPro()?showScreen('screenRating'):showScreen('screenHome');
+  if(isPro()) {
+    showScreen('screenRating');
+  } else {
+    maybeShowRateUs();
+    showScreen('screenHome');
+  }
 }
 
 
@@ -2476,6 +2495,7 @@ function selectRating(n) {
 }
 function skipRating() {
   // Just go home — markPlayed already called by afterStory before we got here
+  maybeShowRateUs();
   showScreen('screenHome');
 }
 
@@ -2501,7 +2521,7 @@ async function submitRating() {
     } catch(e) { console.log('Global rating error:', e); }
   }
   toast(ratingLabels[selectedRating]+' Rating saved!');
-  setTimeout(() => { showScreen('screenHome'); }, 1400);
+  setTimeout(() => { maybeShowRateUs(); showScreen('screenHome'); }, 1400);
 }
 
 // ===================== HISTORY =====================
@@ -3610,6 +3630,7 @@ async function buildModMessages() {
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button class="btn btn-outline btn-sm" onclick="buildModPanel()">👥 Users</button>
         <button class="btn btn-primary btn-sm" onclick="buildModMessages()">✉️ Messages</button>
+        <button class="btn btn-outline btn-sm" style="background:#fff3cd;border-color:#ffc107;color:#856404" onclick="buildModAppRatings()">⭐ App Ratings</button>
       </div>
       <div class="msg-list">${msgs.map(m => `
         <div class="msg-item${m.reply && !m.reply_read ? ' unread' : ''}" onclick="openMsgDetail(${m.id})">
@@ -3878,6 +3899,7 @@ async function buildModPanel() {
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button onclick="openAddBotModal()" style="background:#6f42c1;color:#fff;border:2px solid rgba(255,255,255,.4);border-radius:20px;padding:6px 14px;font-weight:800;font-size:.85rem;cursor:pointer">🤖 Add Bot</button>
           <button onclick="buildModMessages()" style="background:rgba(255,255,255,.2);color:#fff;border:2px solid rgba(255,255,255,.4);border-radius:20px;padding:6px 14px;font-weight:800;font-size:.85rem;cursor:pointer">✉️ Messages</button>
+          <button onclick="buildModAppRatings()" style="background:#ffd700;color:#5a4000;border:2px solid rgba(255,255,255,.4);border-radius:20px;padding:6px 14px;font-weight:800;font-size:.85rem;cursor:pointer">⭐ App Ratings</button>
         </div>
       </div>
       ${bots.length ? `<div style="padding:14px 20px;border-bottom:2px solid #e0e0e0;background:#f5f0ff">
@@ -4776,6 +4798,137 @@ async function renderMiniBadges(el) {
   el.innerHTML = _renderMiniTable(scored, _miniLbEmail, e => e.score + ' badges');
 }
 
+// ===================== RATE US POPUP =====================
+let _rateUsSelectedStar = 0;
+const RATE_US_LABELS = ['','😬 Not great','😐 It's okay','🙂 Pretty good','😄 Really good!','🏆 Love it!'];
+
+// Track stories played this session (resets on page load)
+let _sessionStoriesPlayed = 0;
+let _rateUsShown = false; // only show once per session
+
+function _initRateUsStars() {
+  const row = document.getElementById('rateUsStars');
+  if (!row) return;
+  row.innerHTML = '';
+  for (let i = 1; i <= 5; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'rate-us-star';
+    btn.textContent = '⭐';
+    btn.onclick = () => _selectRateUsStar(i);
+    row.appendChild(btn);
+  }
+}
+
+function _selectRateUsStar(n) {
+  _rateUsSelectedStar = n;
+  document.querySelectorAll('.rate-us-star').forEach((b,i) => b.classList.toggle('active', i < n));
+  const lbl = document.getElementById('rateUsLabel');
+  if (lbl) lbl.textContent = RATE_US_LABELS[n] || '';
+}
+
+function maybeShowRateUs() {
+  // Already shown this session, or not enough stories played yet
+  if (_rateUsShown) return;
+  if (_sessionStoriesPlayed < 2) return;
+  // Only show once per device ever (after they've rated or dismissed)
+  if (localStorage.getItem('rate_us_done')) return;
+  _rateUsShown = true;
+  _rateUsSelectedStar = 0;
+  _initRateUsStars();
+  const lbl = document.getElementById('rateUsLabel');
+  if (lbl) lbl.textContent = '';
+  // Small delay so it doesn't interrupt the story flow
+  setTimeout(() => {
+    const el = document.getElementById('rateUsOverlay');
+    if (el) el.classList.remove('hidden');
+  }, 800);
+}
+
+async function submitAppRating() {
+  if (!_rateUsSelectedStar) { 
+    const lbl = document.getElementById('rateUsLabel');
+    if (lbl) lbl.textContent = 'Please pick a star first!';
+    return; 
+  }
+  // Save to Supabase
+  try {
+    await sb.from('app_ratings').insert({
+      rating: _rateUsSelectedStar,
+      email: currentUser?.email || null,
+      nickname: currentProfile?.nickname || null,
+      rated_at: new Date().toISOString()
+    });
+  } catch(e) { /* silent — don't block on DB error */ }
+  localStorage.setItem('rate_us_done', '1');
+  const el = document.getElementById('rateUsOverlay');
+  if (el) el.classList.add('hidden');
+  toast(_rateUsSelectedStar >= 4 ? '🙏 Thank you so much!' : '🙏 Thanks for the feedback!');
+}
+
+function dismissAppRating() {
+  const el = document.getElementById('rateUsOverlay');
+  if (el) el.classList.add('hidden');
+  // Don't set rate_us_done — they can still be shown next session
+  // But don't show again this session
+}
+
+async function buildModAppRatings() {
+  if (!currentProfile?.is_mod) return;
+  const el = document.getElementById('modPanelContent');
+  el.innerHTML = '<div class="lb-loading">Loading app ratings... ⏳</div>';
+  try {
+    const { data, error } = await sb.from('app_ratings').select('*').order('rated_at', { ascending: false });
+    if (error) throw error;
+    const ratings = data || [];
+    const total = ratings.length;
+    const avg = total ? (ratings.reduce((s, r) => s + r.rating, 0) / total).toFixed(2) : '—';
+    const dist = [1,2,3,4,5].map(star => ({
+      star,
+      count: ratings.filter(r => r.rating === star).length
+    }));
+    const maxCount = Math.max(...dist.map(d => d.count), 1);
+
+    el.innerHTML = `
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="buildModPanel()">👥 Users</button>
+        <button class="btn btn-outline btn-sm" onclick="buildModMessages()">✉️ Messages</button>
+        <button class="btn btn-outline btn-sm" style="background:#fff3cd;border-color:#ffc107;color:#856404" onclick="buildModAppRatings()">⭐ App Ratings</button>
+      </div>
+      <div style="background:linear-gradient(135deg,#fff8e1,#fffde7);border:3px solid #ffd700;border-radius:20px;padding:24px;margin-bottom:18px;text-align:center;box-shadow:4px 4px 0 #e6b800">
+        <div style="font-family:'Boogaloo',cursive;font-size:3.5rem;color:var(--primary);line-height:1">${avg}</div>
+        <div style="font-size:1.5rem;margin:4px 0">${avg !== '—' ? '⭐'.repeat(Math.round(parseFloat(avg))) : ''}</div>
+        <div style="font-weight:800;color:#888;font-size:.9rem">${total} total rating${total !== 1 ? 's' : ''}</div>
+      </div>
+      <div style="background:var(--card);border:2px solid #e0e0e0;border-radius:16px;padding:18px;margin-bottom:18px">
+        <div style="font-weight:800;font-size:.9rem;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">Distribution</div>
+        ${dist.reverse().map(d => `
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div style="width:20px;text-align:right;font-weight:800;font-size:.85rem">${d.star}⭐</div>
+            <div style="flex:1;background:#f0f0f0;border-radius:10px;height:18px;overflow:hidden">
+              <div style="height:100%;background:linear-gradient(90deg,#ffd700,#ff9800);border-radius:10px;width:${Math.round(d.count/maxCount*100)}%;transition:width .5s"></div>
+            </div>
+            <div style="width:32px;font-weight:800;font-size:.85rem;color:#888">${d.count}</div>
+          </div>`).join('')}
+      </div>
+      <div style="background:var(--card);border:2px solid #e0e0e0;border-radius:16px;overflow:hidden">
+        <div style="padding:14px 18px;border-bottom:2px solid #f0f0f0;font-weight:800;font-size:.9rem;color:#888;text-transform:uppercase;letter-spacing:.5px">All Ratings</div>
+        ${ratings.length === 0 ? '<div class="lb-empty">No ratings yet.</div>' :
+          ratings.map(r => `
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #f5f5f5">
+              <div style="font-size:1.3rem">${'⭐'.repeat(r.rating)}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:800;font-size:.88rem">${escHtml(r.nickname || 'Anonymous')}</div>
+                <div style="font-size:.75rem;color:#aaa">${r.email ? escHtml(r.email) : 'Not signed in'} · ${r.rated_at ? new Date(r.rated_at).toLocaleString() : ''}</div>
+              </div>
+              <div style="font-family:'Boogaloo',cursive;font-size:1.4rem;color:var(--primary)">${r.rating}/5</div>
+            </div>`).join('')}
+      </div>`;
+  } catch(e) {
+    console.error(e);
+    el.innerHTML = '<div class="lb-empty">Could not load app ratings.</div>';
+  }
+}
+
 // ===================== INIT =====================
 buildStarsRow();
 updateAuthUI();
@@ -4854,6 +5007,19 @@ setTimeout(initEventPopup, 1500);
 
 <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "92fdd0c5c8c54f75b2054cd69af325b0"}'></script><!-- End Cloudflare Web Analytics -->
 
+
+<!-- RATE US MODAL -->
+<div class="rate-us-overlay hidden" id="rateUsOverlay">
+  <div class="rate-us-box">
+    <div style="font-size:2.8rem;margin-bottom:8px">🌟</div>
+    <h2>Enjoying Gapster?</h2>
+    <p>You've been playing for a bit — we'd love to know what you think!</p>
+    <div class="rate-us-stars" id="rateUsStars"></div>
+    <div class="rate-us-label" id="rateUsLabel"></div>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:10px" onclick="submitAppRating()">Submit Rating ⭐</button>
+    <button class="btn btn-outline" style="width:100%;font-size:1rem" onclick="dismissAppRating()">Maybe Later</button>
+  </div>
+</div>
 <!-- BADGE VIEWER MODAL -->
 <div id="badgeViewerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;" onclick="closeBadgeViewer(event)">
   <div style="background:var(--bg);border:3px solid var(--ink);border-radius:20px;max-width:520px;width:94vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:6px 6px 0 var(--ink);overflow:hidden">
